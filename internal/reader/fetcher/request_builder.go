@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+	"os"
+	"strings"
 
 	"miniflux.app/v2/internal/proxyrotator"
 )
@@ -206,7 +208,17 @@ func (r *RequestBuilder) ExecuteRequest(requestURL string) (*http.Response, erro
 
 	req.Header = r.headers
 	req.Header.Set("Accept-Encoding", "br, gzip")
-	req.Header.Set("Accept", defaultAcceptHeader)
+
+	var thost string = strings.ToUpper(req.URL.Hostname())
+	thost = strings.Replace(thost, ".", "_", -1)
+	thost = strings.Replace(thost, "-", "_", -1)
+	accept_val, accept_ok := os.LookupEnv("HTTP_CLIENT_ACCEPT_" + thost)
+	if !accept_ok {
+		req.Header.Set("Accept", defaultAcceptHeader)
+	} else if accept_val != "" && accept_val != "-" {
+		req.Header.Set("Accept", accept_val)
+	}
+
 	req.Header.Set("Connection", "close")
 
 	slog.Debug("Making outgoing request", slog.Group("request",
