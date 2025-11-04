@@ -29,6 +29,7 @@ type Integration struct {
 	WallabagClientSecret             string
 	WallabagUsername                 string
 	WallabagPassword                 string
+	WallabagTags                     string
 	NunuxKeeperEnabled               bool
 	NunuxKeeperURL                   string
 	NunuxKeeperAPIKey                string
@@ -41,9 +42,6 @@ type Integration struct {
 	EspialTags                       string
 	ReadwiseEnabled                  bool
 	ReadwiseAPIKey                   string
-	PocketEnabled                    bool
-	PocketAccessToken                string
-	PocketConsumerKey                string
 	TelegramBotEnabled               bool
 	TelegramBotToken                 string
 	TelegramBotChatID                string
@@ -62,6 +60,11 @@ type Integration struct {
 	LinkdingAPIKey                   string
 	LinkdingTags                     string
 	LinkdingMarkAsUnread             bool
+	LinktacoEnabled                  bool
+	LinktacoAPIToken                 string
+	LinktacoOrgSlug                  string
+	LinktacoTags                     string
+	LinktacoVisibility               string
 	LinkwardenEnabled                bool
 	LinkwardenURL                    string
 	LinkwardenAPIKey                 string
@@ -90,9 +93,14 @@ type Integration struct {
 	WebhookSecret                    string
 	RSSBridgeEnabled                 bool
 	RSSBridgeURL                     string
+	RSSBridgeToken                   string
 	OmnivoreEnabled                  bool
 	OmnivoreAPIKey                   string
 	OmnivoreURL                      string
+	KarakeepEnabled                  bool
+	KarakeepAPIKey                   string
+	KarakeepURL                      string
+	KarakeepTags                     string
 	RaindropEnabled                  bool
 	RaindropToken                    string
 	RaindropCollectionID             string
@@ -116,4 +124,5 @@ type Integration struct {
 	PushoverToken                    string
 	PushoverDevice                   string
 	PushoverPrefix                   string
+	ArchiveorgEnabled                bool
 }

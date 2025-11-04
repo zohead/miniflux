@@ -7,6 +7,7 @@ import (
 	"html"
 	"log/slog"
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -18,24 +19,21 @@ import (
 	"miniflux.app/v2/internal/urllib"
 )
 
-type RSSAdapter struct {
-	rss *RSS
+type rssAdapter struct {
+	rss *rss
 }
 
-func NewRSSAdapter(rss *RSS) *RSSAdapter {
-	return &RSSAdapter{rss}
-}
-
-func (r *RSSAdapter) BuildFeed(baseURL string) *model.Feed {
+func (r *rssAdapter) buildFeed(baseURL string) *model.Feed {
 	feed := &model.Feed{
-		Title:   html.UnescapeString(strings.TrimSpace(r.rss.Channel.Title)),
-		FeedURL: strings.TrimSpace(baseURL),
-		SiteURL: strings.TrimSpace(r.rss.Channel.Link),
+		Title:       html.UnescapeString(strings.TrimSpace(r.rss.Channel.Title)),
+		FeedURL:     strings.TrimSpace(baseURL),
+		SiteURL:     strings.TrimSpace(r.rss.Channel.Link),
+		Description: strings.TrimSpace(r.rss.Channel.Description),
 	}
 
 	// Ensure the Site URL is absolute.
-	if siteURL, err := urllib.AbsoluteURL(baseURL, feed.SiteURL); err == nil {
-		feed.SiteURL = siteURL
+	if absoluteSiteURL, err := urllib.AbsoluteURL(baseURL, feed.SiteURL); err == nil {
+		feed.SiteURL = absoluteSiteURL
 	}
 
 	// Try to find the feed URL from the Atom links.
@@ -57,7 +55,7 @@ func (r *RSSAdapter) BuildFeed(baseURL string) *model.Feed {
 	// Get TTL if defined.
 	if r.rss.Channel.TTL != "" {
 		if ttl, err := strconv.Atoi(r.rss.Channel.TTL); err == nil {
-			feed.TTL = ttl
+			feed.TTL = time.Duration(ttl) * time.Minute
 		}
 	}
 
@@ -77,7 +75,13 @@ func (r *RSSAdapter) BuildFeed(baseURL string) *model.Feed {
 		// Populate the entry URL.
 		entryURL := findEntryURL(&item)
 		if entryURL == "" {
-			entry.URL = feed.SiteURL
+			// Fallback to the first enclosure URL if it exists.
+			if len(entry.Enclosures) > 0 && entry.Enclosures[0].URL != "" {
+				entry.URL = entry.Enclosures[0].URL
+			} else {
+				// Fallback to the feed URL if no entry URL is found.
+				entry.URL = feed.SiteURL
+			}
 		} else {
 			if absoluteEntryURL, err := urllib.AbsoluteURL(feed.SiteURL, entryURL); err == nil {
 				entry.URL = absoluteEntryURL
@@ -103,11 +107,11 @@ func (r *RSSAdapter) BuildFeed(baseURL string) *model.Feed {
 		// Generate the entry hash.
 		switch {
 		case item.GUID.Data != "":
-			entry.Hash = crypto.Hash(item.GUID.Data)
+			entry.Hash = crypto.SHA256(item.GUID.Data)
 		case entryURL != "":
-			entry.Hash = crypto.Hash(entryURL)
+			entry.Hash = crypto.SHA256(entryURL)
 		default:
-			entry.Hash = crypto.Hash(entry.Title + entry.Content)
+			entry.Hash = crypto.SHA256(entry.Title + entry.Content)
 		}
 
 		// Find CommentsURL if defined.
@@ -123,31 +127,13 @@ func (r *RSSAdapter) BuildFeed(baseURL string) *model.Feed {
 		}
 
 		// Populate entry categories.
-		for _, tag := range item.Categories {
-			if tag != "" {
-				entry.Tags = append(entry.Tags, tag)
-			}
-		}
-		for _, tag := range item.MediaCategories.Labels() {
-			if tag != "" {
-				entry.Tags = append(entry.Tags, tag)
-			}
-		}
+		entry.Tags = findEntryTags(&item)
 		if len(entry.Tags) == 0 {
-			for _, tag := range r.rss.Channel.Categories {
-				if tag != "" {
-					entry.Tags = append(entry.Tags, tag)
-				}
-			}
-			for _, tag := range r.rss.Channel.GetItunesCategories() {
-				if tag != "" {
-					entry.Tags = append(entry.Tags, tag)
-				}
-			}
-			if r.rss.Channel.GooglePlayCategory.Text != "" {
-				entry.Tags = append(entry.Tags, r.rss.Channel.GooglePlayCategory.Text)
-			}
+			entry.Tags = findFeedTags(&r.rss.Channel)
 		}
+		// Sort and deduplicate tags.
+		slices.Sort(entry.Tags)
+		entry.Tags = slices.Compact(entry.Tags)
 
 		feed.Entries = append(feed.Entries, entry)
 	}
@@ -155,7 +141,7 @@ func (r *RSSAdapter) BuildFeed(baseURL string) *model.Feed {
 	return feed
 }
 
-func findFeedAuthor(rssChannel *RSSChannel) string {
+func findFeedAuthor(rssChannel *rssChannel) string {
 	var author string
 	switch {
 	case rssChannel.ItunesAuthor != "":
@@ -168,11 +154,38 @@ func findFeedAuthor(rssChannel *RSSChannel) string {
 		author = rssChannel.ManagingEditor
 	case rssChannel.Webmaster != "":
 		author = rssChannel.Webmaster
+	default:
+		return ""
 	}
-	return sanitizer.StripTags(strings.TrimSpace(author))
+
+	return strings.TrimSpace(sanitizer.StripTags(author))
 }
 
-func findEntryTitle(rssItem *RSSItem) string {
+func findFeedTags(rssChannel *rssChannel) []string {
+	tags := make([]string, 0)
+
+	for _, tag := range rssChannel.Categories {
+		tag = strings.TrimSpace(tag)
+		if tag != "" {
+			tags = append(tags, tag)
+		}
+	}
+
+	for _, tag := range rssChannel.GetItunesCategories() {
+		tag = strings.TrimSpace(tag)
+		if tag != "" {
+			tags = append(tags, tag)
+		}
+	}
+
+	if tag := strings.TrimSpace(rssChannel.GooglePlayCategory.Text); tag != "" {
+		tags = append(tags, tag)
+	}
+
+	return tags
+}
+
+func findEntryTitle(rssItem *rssItem) string {
 	title := rssItem.Title.Content
 
 	if rssItem.DublinCoreTitle != "" {
@@ -182,7 +195,7 @@ func findEntryTitle(rssItem *RSSItem) string {
 	return html.UnescapeString(html.UnescapeString(strings.TrimSpace(title)))
 }
 
-func findEntryURL(rssItem *RSSItem) string {
+func findEntryURL(rssItem *rssItem) string {
 	for _, link := range []string{rssItem.FeedBurnerLink, rssItem.Link} {
 		if link != "" {
 			return strings.TrimSpace(link)
@@ -205,7 +218,7 @@ func findEntryURL(rssItem *RSSItem) string {
 	return ""
 }
 
-func findEntryContent(rssItem *RSSItem) string {
+func findEntryContent(rssItem *rssItem) string {
 	for _, value := range []string{
 		rssItem.DublinCoreContent,
 		rssItem.Description,
@@ -220,7 +233,7 @@ func findEntryContent(rssItem *RSSItem) string {
 	return ""
 }
 
-func findEntryDate(rssItem *RSSItem) time.Time {
+func findEntryDate(rssItem *rssItem) time.Time {
 	value := rssItem.PubDate
 	if rssItem.DublinCoreDate != "" {
 		value = rssItem.DublinCoreDate
@@ -243,7 +256,7 @@ func findEntryDate(rssItem *RSSItem) time.Time {
 	return time.Now()
 }
 
-func findEntryAuthor(rssItem *RSSItem) string {
+func findEntryAuthor(rssItem *rssItem) string {
 	var author string
 
 	switch {
@@ -257,14 +270,36 @@ func findEntryAuthor(rssItem *RSSItem) string {
 		author = rssItem.PersonName()
 	case strings.Contains(rssItem.Author.Inner, "<![CDATA["):
 		author = rssItem.Author.Data
-	default:
+	case rssItem.Author.Inner != "":
 		author = rssItem.Author.Inner
+	default:
+		return ""
 	}
 
 	return strings.TrimSpace(sanitizer.StripTags(author))
 }
 
-func findEntryEnclosures(rssItem *RSSItem, siteURL string) model.EnclosureList {
+func findEntryTags(rssItem *rssItem) []string {
+	tags := make([]string, 0)
+
+	for _, tag := range rssItem.Categories {
+		tag = strings.TrimSpace(tag)
+		if tag != "" {
+			tags = append(tags, tag)
+		}
+	}
+
+	for _, tag := range rssItem.MediaCategories.Labels() {
+		tag = strings.TrimSpace(tag)
+		if tag != "" {
+			tags = append(tags, tag)
+		}
+	}
+
+	return tags
+}
+
+func findEntryEnclosures(rssItem *rssItem, siteURL string) model.EnclosureList {
 	enclosures := make(model.EnclosureList, 0)
 	duplicates := make(map[string]bool)
 

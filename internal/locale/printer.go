@@ -10,71 +10,38 @@ type Printer struct {
 	language string
 }
 
+// NewPrinter creates a new Printer instance for the given language.
+func NewPrinter(language string) *Printer {
+	return &Printer{language}
+}
+
 func (p *Printer) Print(key string) string {
-	if dict, err := GetTranslationDict(p.language); err == nil {
-		if str, ok := dict[key]; ok {
-			if translation, ok := str.(string); ok {
-				return translation
-			}
+	if dict, err := getTranslationDict(p.language); err == nil {
+		if str, ok := dict.singulars[key]; ok {
+			return str
 		}
 	}
 	return key
 }
 
 // Printf is like fmt.Printf, but using language-specific formatting.
-func (p *Printer) Printf(key string, args ...interface{}) string {
-	translation := key
-
-	if dict, err := GetTranslationDict(p.language); err == nil {
-		str, found := dict[key]
-		if found {
-			var valid bool
-			translation, valid = str.(string)
-			if !valid {
-				translation = key
-			}
-		}
-	}
-
-	return fmt.Sprintf(translation, args...)
+func (p *Printer) Printf(key string, args ...any) string {
+	return fmt.Sprintf(p.Print(key), args...)
 }
 
 // Plural returns the translation of the given key by using the language plural form.
-func (p *Printer) Plural(key string, n int, args ...interface{}) string {
-	dict, err := GetTranslationDict(p.language)
+func (p *Printer) Plural(key string, n int, args ...any) string {
+	dict, err := getTranslationDict(p.language)
 	if err != nil {
 		return key
 	}
 
-	if choices, found := dict[key]; found {
-		var plurals []string
-
-		switch v := choices.(type) {
-		case []interface{}:
-			for _, v := range v {
-				plurals = append(plurals, fmt.Sprint(v))
-			}
-		case []string:
-			plurals = v
-		default:
-			return key
-		}
-
-		pluralForm, found := pluralForms[p.language]
-		if !found {
-			pluralForm = pluralForms["default"]
-		}
-
-		index := pluralForm(n)
-		if len(plurals) > index {
-			return fmt.Sprintf(plurals[index], args...)
+	if choices, found := dict.plurals[key]; found {
+		index := getPluralForm(p.language, n)
+		if len(choices) > index {
+			return fmt.Sprintf(choices[index], args...)
 		}
 	}
 
 	return key
-}
-
-// NewPrinter creates a new Printer.
-func NewPrinter(language string) *Printer {
-	return &Printer{language}
 }

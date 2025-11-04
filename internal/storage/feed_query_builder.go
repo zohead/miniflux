@@ -6,6 +6,7 @@ package storage // import "miniflux.app/v2/internal/storage"
 import (
 	"database/sql"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"miniflux.app/v2/internal/model"
@@ -15,14 +16,14 @@ import (
 // FeedQueryBuilder builds a SQL query to fetch feeds.
 type FeedQueryBuilder struct {
 	store             *Storage
-	args              []interface{}
+	args              []any
 	conditions        []string
 	sortExpressions   []string
 	limit             int
 	offset            int
 	withCounters      bool
 	counterJoinFeeds  bool
-	counterArgs       []interface{}
+	counterArgs       []any
 	counterConditions []string
 }
 
@@ -30,9 +31,9 @@ type FeedQueryBuilder struct {
 func NewFeedQueryBuilder(store *Storage, userID int64) *FeedQueryBuilder {
 	return &FeedQueryBuilder{
 		store:             store,
-		args:              []interface{}{userID},
+		args:              []any{userID},
 		conditions:        []string{"f.user_id = $1"},
-		counterArgs:       []interface{}{userID, model.EntryStatusRead, model.EntryStatusUnread},
+		counterArgs:       []any{userID, model.EntryStatusRead, model.EntryStatusUnread},
 		counterConditions: []string{"e.user_id = $1", "e.status IN ($2, $3)"},
 	}
 }
@@ -40,9 +41,9 @@ func NewFeedQueryBuilder(store *Storage, userID int64) *FeedQueryBuilder {
 // WithCategoryID filter by category ID.
 func (f *FeedQueryBuilder) WithCategoryID(categoryID int64) *FeedQueryBuilder {
 	if categoryID > 0 {
-		f.conditions = append(f.conditions, fmt.Sprintf("f.category_id = $%d", len(f.args)+1))
+		f.conditions = append(f.conditions, "f.category_id = $"+strconv.Itoa(len(f.args)+1))
 		f.args = append(f.args, categoryID)
-		f.counterConditions = append(f.counterConditions, fmt.Sprintf("f.category_id = $%d", len(f.counterArgs)+1))
+		f.counterConditions = append(f.counterConditions, "f.category_id = $"+strconv.Itoa(len(f.counterArgs)+1))
 		f.counterArgs = append(f.counterArgs, categoryID)
 		f.counterJoinFeeds = true
 	}
@@ -52,7 +53,7 @@ func (f *FeedQueryBuilder) WithCategoryID(categoryID int64) *FeedQueryBuilder {
 // WithFeedID filter by feed ID.
 func (f *FeedQueryBuilder) WithFeedID(feedID int64) *FeedQueryBuilder {
 	if feedID > 0 {
-		f.conditions = append(f.conditions, fmt.Sprintf("f.id = $%d", len(f.args)+1))
+		f.conditions = append(f.conditions, "f.id = $"+strconv.Itoa(len(f.args)+1))
 		f.args = append(f.args, feedID)
 	}
 	return f
@@ -66,7 +67,7 @@ func (f *FeedQueryBuilder) WithCounters() *FeedQueryBuilder {
 
 // WithSorting add a sort expression.
 func (f *FeedQueryBuilder) WithSorting(column, direction string) *FeedQueryBuilder {
-	f.sortExpressions = append(f.sortExpressions, fmt.Sprintf("%s %s", column, direction))
+	f.sortExpressions = append(f.sortExpressions, column+" "+direction)
 	return f
 }
 
@@ -94,7 +95,7 @@ func (f *FeedQueryBuilder) buildSorting() string {
 	var parts string
 
 	if len(f.sortExpressions) > 0 {
-		parts += fmt.Sprintf(" ORDER BY %s", strings.Join(f.sortExpressions, ", "))
+		parts += " ORDER BY " + strings.Join(f.sortExpressions, ", ")
 	}
 
 	if len(parts) > 0 {
@@ -102,11 +103,11 @@ func (f *FeedQueryBuilder) buildSorting() string {
 	}
 
 	if f.limit > 0 {
-		parts += fmt.Sprintf(" LIMIT %d", f.limit)
+		parts += " LIMIT " + strconv.Itoa(f.limit)
 	}
 
 	if f.offset > 0 {
-		parts += fmt.Sprintf(" OFFSET %d", f.offset)
+		parts += " OFFSET " + strconv.Itoa(f.offset)
 	}
 
 	return parts
@@ -145,9 +146,11 @@ func (f *FeedQueryBuilder) GetFeeds() (model.Feeds, error) {
 			f.parsing_error_msg,
 			f.scraper_rules,
 			f.rewrite_rules,
+			f.url_rewrite_rules,
 			f.blocklist_rules,
 			f.keeplist_rules,
-			f.url_rewrite_rules,
+			f.block_filter_entry_rules,
+			f.keep_filter_entry_rules,
 			f.crawler,
 			f.user_agent,
 			f.cookie,
@@ -224,9 +227,11 @@ func (f *FeedQueryBuilder) GetFeeds() (model.Feeds, error) {
 			&feed.ParsingErrorMsg,
 			&feed.ScraperRules,
 			&feed.RewriteRules,
+			&feed.UrlRewriteRules,
 			&feed.BlocklistRules,
 			&feed.KeeplistRules,
-			&feed.UrlRewriteRules,
+			&feed.BlockFilterEntryRules,
+			&feed.KeepFilterEntryRules,
 			&feed.Crawler,
 			&feed.UserAgent,
 			&feed.Cookie,

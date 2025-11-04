@@ -15,6 +15,18 @@
         <div role="alert" class="alert alert-error">{{ .errorMessage }}</div>
     {{ end }}
 
+    <details {{ if .form.ArchiveorgEnabled }}open{{ end }}>
+        <summary>Archive.org</summary>
+        <div class="form-section">
+            <label>
+                <input type="checkbox" name="archiveorg_enabled" value="1" {{ if .form.ArchiveorgEnabled }}checked{{ end }}> {{ t "form.integration.archiveorg_activate" }}
+            </label>
+            <div class="buttons">
+                <button type="submit" class="button button-primary" data-label-loading="{{ t "form.submit.saving" }}">{{ t "action.update" }}</button>
+            </div>
+        </div>
+    </details>
+
     <details {{ if .form.AppriseEnabled }}open{{ end }}>
         <summary>Apprise</summary>
         <div class="form-section">
@@ -26,7 +38,7 @@
             <input type="url" name="apprise_url" id="form-apprise-url" value="{{ .form.AppriseURL }}" placeholder="http://apprise:8080" spellcheck="false">
 
             <label for="form-apprise-services-urls">{{ t "form.integration.apprise_services_url" }}
-                <a href="https://github.com/caronc/apprise/wiki" target="_blank">
+                <a href="https://github.com/caronc/apprise/wiki" {{ if $.user.OpenExternalLinksInNewTab }}target="_blank"{{ end }}>
                     {{ icon "external-link" }}
                 </a>
             </label>
@@ -228,6 +240,37 @@
         </div>
     </details>
 
+    <details {{ if .form.LinktacoEnabled }}open{{ end }}>
+        <summary>LinkTaco</summary>
+        <div class="form-section">
+            <label>
+                <input type="checkbox" name="linktaco_enabled" value="1" {{ if .form.LinktacoEnabled }}checked{{ end }}> {{ t "form.integration.linktaco_activate" }}
+            </label>
+
+            <label for="form-linktaco-api-token">{{ t "form.integration.linktaco_api_token" }}</label>
+            <input type="password" name="linktaco_api_token" id="form-linktaco-api-token" value="{{ .form.LinktacoAPIToken }}" spellcheck="false">
+            <p class="hint">{{ t "form.integration.linktaco_api_token_hint" }} <a href="https://linktaco.com/oauth2/personal" target="_blank" rel="noopener noreferrer">https://linktaco.com/oauth2/personal</a></p>
+
+            <label for="form-linktaco-org-slug">{{ t "form.integration.linktaco_org_slug" }}</label>
+            <input type="text" name="linktaco_org_slug" id="form-linktaco-org-slug" value="{{ .form.LinktacoOrgSlug }}" placeholder="my-organization" spellcheck="false">
+
+            <label for="form-linktaco-tags">{{ t "form.integration.linktaco_tags" }}</label>
+            <input type="text" name="linktaco_tags" id="form-linktaco-tags" value="{{ .form.LinktacoTags }}" placeholder="miniflux, bookmarks" spellcheck="false">
+            <p class="hint">{{ t "form.integration.linktaco_tags_hint" }}</p>
+
+            <label for="form-linktaco-visibility">{{ t "form.integration.linktaco_visibility" }}</label>
+            <select name="linktaco_visibility" id="form-linktaco-visibility">
+                <option value="PUBLIC" {{ if eq .form.LinktacoVisibility "PUBLIC" }}selected{{ end }}>{{ t "form.integration.linktaco_visibility_public" }}</option>
+                <option value="PRIVATE" {{ if eq .form.LinktacoVisibility "PRIVATE" }}selected{{ end }}>{{ t "form.integration.linktaco_visibility_private" }}</option>
+            </select>
+            <p class="hint">{{ t "form.integration.linktaco_visibility_hint" }}</p>
+
+            <div class="buttons">
+                <button type="submit" class="button button-primary" data-label-loading="{{ t "form.submit.saving" }}">{{ t "action.update" }}</button>
+            </div>
+        </div>
+    </details>
+
     <details {{ if .form.LinkwardenEnabled }}open{{ end }}>
         <summary>Linkwarden</summary>
         <div class="form-section">
@@ -364,6 +407,28 @@
         </div>
     </details>
 
+    <details {{ if .form.KarakeepEnabled }}open{{ end }}>
+        <summary>Karakeep</summary>
+        <div class="form-section">
+            <label>
+                <input type="checkbox" name="karakeep_enabled" value="1" {{ if .form.KarakeepEnabled }}checked{{ end }}> {{ t "form.integration.karakeep_activate" }}
+            </label>
+
+            <label for="form-karakeep-api-key">{{ t "form.integration.karakeep_api_key" }}</label>
+            <input type="text" name="karakeep_api_key" id="form-karakeep-api-key" value="{{ .form.KarakeepAPIKey }}" spellcheck="false">
+
+            <label for="form-karakeep-url">{{ t "form.integration.karakeep_url" }}</label>
+            <input type="url" name="karakeep_url" id="form-karakeep-url" value="{{ .form.KarakeepURL }}" placeholder="https://try.karakeep.app/api/v1/bookmarks" spellcheck="false">
+
+            <label for="form-karakeep-tags">{{ t "form.integration.karakeep_tags" }}</label>
+            <input type="text" name="karakeep_tags" id="form-karakeep-tags" value="{{ .form.KarakeepTags }}" placeholder="miniflux, new" spellcheck="false">
+
+            <div class="buttons">
+                <button type="submit" class="button button-primary" data-label-loading="{{ t "form.submit.saving" }}">{{ t "action.update" }}</button>
+            </div>
+        </div>
+    </details>
+
     <details {{ if .form.PinboardEnabled }}open{{ end }}>
         <summary>Pinboard</summary>
         <div class="form-section">
@@ -380,31 +445,6 @@
             <label>
                 <input type="checkbox" name="pinboard_mark_as_unread" value="1" {{ if .form.PinboardMarkAsUnread }}checked{{ end }}> {{ t "form.integration.pinboard_bookmark" }}
             </label>
-
-            <div class="buttons">
-                <button type="submit" class="button button-primary" data-label-loading="{{ t "form.submit.saving" }}">{{ t "action.update" }}</button>
-            </div>
-        </div>
-    </details>
-
-    <details {{ if .form.PocketEnabled }}open{{ end }}>
-        <summary>Pocket</summary>
-        <div class="form-section">
-            <label>
-                <input type="checkbox" name="pocket_enabled" value="1" {{ if .form.PocketEnabled }}checked{{ end }}> {{ t "form.integration.pocket_activate" }}
-            </label>
-
-            {{ if not .hasPocketConsumerKeyConfigured }}
-                <label for="form-pocket-consumer-key">{{ t "form.integration.pocket_consumer_key" }}</label>
-                <input type="text" name="pocket_consumer_key" id="form-pocket-consumer-key" value="{{ .form.PocketConsumerKey }}" spellcheck="false">
-            {{ end }}
-
-            <label for="form-pocket-access-token">{{ t "form.integration.pocket_access_token" }}</label>
-            <input type="password" name="pocket_access_token" id="form-pocket-access-token" value="{{ .form.PocketAccessToken }}" autocomplete="new-password">
-
-            {{ if not .form.PocketAccessToken }}
-                <p><a href="{{ route "pocketAuthorize" }}">{{ t "form.integration.pocket_connect_link" }}</a></p>
-            {{ end }}
 
             <div class="buttons">
                 <button type="submit" class="button button-primary" data-label-loading="{{ t "form.submit.saving" }}">{{ t "action.update" }}</button>
@@ -495,7 +535,7 @@
             <label for="form-readwise-api-key">{{ t "form.integration.readwise_api_key" }}</label>
             <input type="text" name="readwise_api_key" id="form-readwise-api-key" value="{{ .form.ReadwiseAPIKey }}" spellcheck="false">
 
-            <p><a href="https://readwise.io/access_token" target="_blank">{{ t "form.integration.readwise_api_key_link" }}</a></p>
+            <p><a href="https://readwise.io/access_token" {{ if $.user.OpenExternalLinksInNewTab }}target="_blank"{{ end }}>{{ t "form.integration.readwise_api_key_link" }}</a></p>
 
             <div class="buttons">
                 <button type="submit" class="button button-primary" data-label-loading="{{ t "form.submit.saving" }}">{{ t "action.update" }}</button>
@@ -512,6 +552,9 @@
 
             <label for="form-rssbridge-url">{{ t "form.integration.rssbridge_url" }}</label>
             <input type="url" name="rssbridge_url" id="form-rssbridge-url" value="{{ .form.RSSBridgeURL }}" spellcheck="false">
+
+            <label for="form-rssbridge-token">{{ t "form.integration.rssbridge_token" }}</label>
+            <input type="password" name="rssbridge_token" id="form-rssbridge-token" value="{{ .form.RSSBridgeToken }}" spellcheck="false">
 
             <div class="buttons">
                 <button type="submit" class="button button-primary" data-label-loading="{{ t "form.submit.saving" }}">{{ t "action.update" }}</button>
@@ -635,6 +678,9 @@
 
             <label for="form-wallabag-password">{{ t "form.integration.wallabag_password" }}</label>
             <input type="password" name="wallabag_password" id="form-wallabag-password" value="{{ .form.WallabagPassword }}" autocomplete="new-password">
+
+            <label for="form-wallabag-tags">{{ t "form.integration.wallabag_tags" }}</label>
+            <input type="text" name="wallabag_tags" id="form-wallabag-tags" value="{{ .form.WallabagTags }}" spellcheck="false">
 
             <div class="buttons">
                 <button type="submit" class="button button-primary" data-label-loading="{{ t "form.submit.saving" }}">{{ t "action.update" }}</button>

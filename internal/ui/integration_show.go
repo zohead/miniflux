@@ -6,7 +6,6 @@ package ui // import "miniflux.app/v2/internal/ui"
 import (
 	"net/http"
 
-	"miniflux.app/v2/internal/config"
 	"miniflux.app/v2/internal/http/request"
 	"miniflux.app/v2/internal/http/response/html"
 	"miniflux.app/v2/internal/ui/form"
@@ -46,6 +45,7 @@ func (h *handler) showIntegrationPage(w http.ResponseWriter, r *http.Request) {
 		WallabagClientSecret:             integration.WallabagClientSecret,
 		WallabagUsername:                 integration.WallabagUsername,
 		WallabagPassword:                 integration.WallabagPassword,
+		WallabagTags:                     integration.WallabagTags,
 		NotionEnabled:                    integration.NotionEnabled,
 		NotionPageID:                     integration.NotionPageID,
 		NotionToken:                      integration.NotionToken,
@@ -58,9 +58,6 @@ func (h *handler) showIntegrationPage(w http.ResponseWriter, r *http.Request) {
 		EspialTags:                       integration.EspialTags,
 		ReadwiseEnabled:                  integration.ReadwiseEnabled,
 		ReadwiseAPIKey:                   integration.ReadwiseAPIKey,
-		PocketEnabled:                    integration.PocketEnabled,
-		PocketAccessToken:                integration.PocketAccessToken,
-		PocketConsumerKey:                integration.PocketConsumerKey,
 		TelegramBotEnabled:               integration.TelegramBotEnabled,
 		TelegramBotToken:                 integration.TelegramBotToken,
 		TelegramBotChatID:                integration.TelegramBotChatID,
@@ -79,6 +76,11 @@ func (h *handler) showIntegrationPage(w http.ResponseWriter, r *http.Request) {
 		LinkdingAPIKey:                   integration.LinkdingAPIKey,
 		LinkdingTags:                     integration.LinkdingTags,
 		LinkdingMarkAsUnread:             integration.LinkdingMarkAsUnread,
+		LinktacoEnabled:                  integration.LinktacoEnabled,
+		LinktacoAPIToken:                 integration.LinktacoAPIToken,
+		LinktacoOrgSlug:                  integration.LinktacoOrgSlug,
+		LinktacoTags:                     integration.LinktacoTags,
+		LinktacoVisibility:               integration.LinktacoVisibility,
 		LinkwardenEnabled:                integration.LinkwardenEnabled,
 		LinkwardenURL:                    integration.LinkwardenURL,
 		LinkwardenAPIKey:                 integration.LinkwardenAPIKey,
@@ -107,9 +109,14 @@ func (h *handler) showIntegrationPage(w http.ResponseWriter, r *http.Request) {
 		WebhookSecret:                    integration.WebhookSecret,
 		RSSBridgeEnabled:                 integration.RSSBridgeEnabled,
 		RSSBridgeURL:                     integration.RSSBridgeURL,
+		RSSBridgeToken:                   integration.RSSBridgeToken,
 		OmnivoreEnabled:                  integration.OmnivoreEnabled,
 		OmnivoreAPIKey:                   integration.OmnivoreAPIKey,
 		OmnivoreURL:                      integration.OmnivoreURL,
+		KarakeepEnabled:                  integration.KarakeepEnabled,
+		KarakeepAPIKey:                   integration.KarakeepAPIKey,
+		KarakeepURL:                      integration.KarakeepURL,
+		KarakeepTags:                     integration.KarakeepTags,
 		RaindropEnabled:                  integration.RaindropEnabled,
 		RaindropToken:                    integration.RaindropToken,
 		RaindropCollectionID:             integration.RaindropCollectionID,
@@ -136,6 +143,7 @@ func (h *handler) showIntegrationPage(w http.ResponseWriter, r *http.Request) {
 		PushoverToken:                    integration.PushoverToken,
 		PushoverDevice:                   integration.PushoverDevice,
 		PushoverPrefix:                   integration.PushoverPrefix,
+		ArchiveorgEnabled:                integration.ArchiveorgEnabled,
 	}
 
 	sess := session.New(h.store, request.SessionID(r))
@@ -145,7 +153,6 @@ func (h *handler) showIntegrationPage(w http.ResponseWriter, r *http.Request) {
 	view.Set("user", user)
 	view.Set("countUnread", h.store.CountUnreadEntries(user.ID))
 	view.Set("countErrorFeeds", h.store.CountUserFeedsWithErrors(user.ID))
-	view.Set("hasPocketConsumerKeyConfigured", config.Opts.PocketConsumerKey("") != "")
 
 	html.OK(w, r, view.Render("integrations"))
 }

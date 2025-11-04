@@ -4,10 +4,26 @@
 package urllib // import "miniflux.app/v2/internal/urllib"
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
 )
+
+// IsRelativePath returns true if the link is a relative path.
+func IsRelativePath(link string) bool {
+	if link == "" {
+		return false
+	}
+	if parsedURL, err := url.Parse(link); err == nil {
+		// Only allow relative paths (not scheme-relative URLs like //example.org)
+		// and ensure the URL doesn't have a host component
+		if !parsedURL.IsAbs() && parsedURL.Host == "" && parsedURL.Scheme == "" {
+			return true
+		}
+	}
+	return false
+}
 
 // IsAbsoluteURL returns true if the link is absolute.
 func IsAbsoluteURL(link string) bool {
@@ -18,19 +34,34 @@ func IsAbsoluteURL(link string) bool {
 	return u.IsAbs()
 }
 
-// AbsoluteURL converts the input URL as absolute URL if necessary.
-func AbsoluteURL(baseURL, input string) (string, error) {
+// GetAbsoluteURL returns the absolute form of `input` if possible, as well as its parsed form.
+func GetAbsoluteURL(input string) (string, *url.URL, error) {
 	if strings.HasPrefix(input, "//") {
-		input = "https://" + input[2:]
+		return "https:" + input, nil, nil
+	}
+	if strings.HasPrefix(input, "https://") || strings.HasPrefix(input, "http://") {
+		return input, nil, nil
 	}
 
 	u, err := url.Parse(input)
 	if err != nil {
-		return "", fmt.Errorf("unable to parse input URL: %v", err)
+		return "", nil, fmt.Errorf("unable to parse input URL: %v", err)
 	}
 
 	if u.IsAbs() {
-		return u.String(), nil
+		return u.String(), u, nil
+	}
+	return "", u, nil
+}
+
+// AbsoluteURL converts the input URL as absolute URL if necessary.
+func AbsoluteURL(baseURL, input string) (string, error) {
+	absURL, u, err := GetAbsoluteURL(input)
+	if err != nil {
+		return "", err
+	}
+	if absURL != "" {
+		return absURL, nil
 	}
 
 	base, err := url.Parse(baseURL)
@@ -80,14 +111,19 @@ func Domain(websiteURL string) string {
 	return parsedURL.Host
 }
 
+// DomainWithoutWWW returns only the domain part of the given URL, with the "www." prefix removed if present.
+func DomainWithoutWWW(websiteURL string) string {
+	return strings.TrimPrefix(Domain(websiteURL), "www.")
+}
+
 // JoinBaseURLAndPath returns a URL string with the provided path elements joined together.
 func JoinBaseURLAndPath(baseURL, path string) (string, error) {
 	if baseURL == "" {
-		return "", fmt.Errorf("empty base URL")
+		return "", errors.New("empty base URL")
 	}
 
 	if path == "" {
-		return "", fmt.Errorf("empty path")
+		return "", errors.New("empty path")
 	}
 
 	_, err := url.Parse(baseURL)

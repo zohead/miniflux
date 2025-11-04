@@ -5,9 +5,11 @@ package processor // import "miniflux.app/v2/internal/reader/processor"
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"regexp"
+	"strings"
 
 	"miniflux.app/v2/internal/config"
 	"miniflux.app/v2/internal/model"
@@ -16,7 +18,6 @@ import (
 )
 
 var (
-	bilibiliURLRegex     = regexp.MustCompile(`bilibili\.com/video/(.*)$`)
 	bilibiliVideoIdRegex = regexp.MustCompile(`/video/(?:av(\d+)|BV([a-zA-Z0-9]+))`)
 )
 
@@ -24,9 +25,7 @@ func shouldFetchBilibiliWatchTime(entry *model.Entry) bool {
 	if !config.Opts.FetchBilibiliWatchTime() {
 		return false
 	}
-	matches := bilibiliURLRegex.FindStringSubmatch(entry.URL)
-	urlMatchesBilibiliPattern := len(matches) == 2
-	return urlMatchesBilibiliPattern
+	return strings.Contains(entry.URL, "bilibili.com/video/")
 }
 
 func extractBilibiliVideoID(websiteURL string) (string, string, error) {
@@ -52,7 +51,7 @@ func fetchBilibiliWatchTime(websiteURL string) (int, error) {
 	if extractErr != nil {
 		return 0, extractErr
 	}
-	bilibiliApiURL := fmt.Sprintf("https://api.bilibili.com/x/web-interface/view?%s=%s", idType, videoID)
+	bilibiliApiURL := "https://api.bilibili.com/x/web-interface/view?" + idType + "=" + videoID
 
 	responseHandler := fetcher.NewResponseHandler(requestBuilder.ExecuteRequest(bilibiliApiURL))
 	defer responseHandler.Close()
@@ -65,7 +64,7 @@ func fetchBilibiliWatchTime(websiteURL string) (int, error) {
 		return 0, localizedError.Error()
 	}
 
-	var result map[string]interface{}
+	var result map[string]any
 	doc := json.NewDecoder(responseHandler.Body(config.Opts.HTTPClientMaxBodySize()))
 	if docErr := doc.Decode(&result); docErr != nil {
 		return 0, fmt.Errorf("failed to decode API response: %v", docErr)
@@ -75,14 +74,14 @@ func fetchBilibiliWatchTime(websiteURL string) (int, error) {
 		return 0, fmt.Errorf("API returned error code: %v", result["code"])
 	}
 
-	data, ok := result["data"].(map[string]interface{})
+	data, ok := result["data"].(map[string]any)
 	if !ok {
-		return 0, fmt.Errorf("data field not found or not an object")
+		return 0, errors.New("data field not found or not an object")
 	}
 
 	duration, ok := data["duration"].(float64)
 	if !ok {
-		return 0, fmt.Errorf("duration not found or not a number")
+		return 0, errors.New("duration not found or not a number")
 	}
 	intDuration := int(duration)
 	durationMin := intDuration / 60

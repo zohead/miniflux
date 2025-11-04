@@ -18,7 +18,7 @@ import (
 )
 
 var (
-	tagAllowList = map[string][]string{
+	allowedHTMLTagsAndAttributes = map[string][]string{
 		"a":          {"href", "title", "id"},
 		"abbr":       {"title"},
 		"acronym":    {"title"},
@@ -45,8 +45,8 @@ var (
 		"h5":         {"id"},
 		"h6":         {"id"},
 		"hr":         {},
-		"iframe":     {"width", "height", "frameborder", "src", "allowfullscreen"},
-		"img":        {"alt", "title", "src", "srcset", "sizes", "width", "height"},
+		"iframe":     {"width", "height", "frameborder", "src", "allowfullscreen", "referrerpolicy"},
+		"img":        {"alt", "title", "src", "srcset", "sizes", "width", "height", "fetchpriority", "decoding"},
 		"ins":        {},
 		"kbd":        {},
 		"li":         {"id"},
@@ -77,17 +77,146 @@ var (
 		"var":        {},
 		"video":      {"poster", "height", "width", "src"},
 		"wbr":        {},
+
+		// MathML: https://w3c.github.io/mathml-core/ and https://developer.mozilla.org/en-US/docs/Web/MathML/Reference/Element
+		"annotation":     {},
+		"annotation-xml": {},
+		"maction":        {},
+		"math":           {"xmlns"},
+		"merror":         {},
+		"mfrac":          {},
+		"mi":             {},
+		"mmultiscripts":  {},
+		"mn":             {},
+		"mo":             {},
+		"mover":          {},
+		"mpadded":        {},
+		"mphantom":       {},
+		"mprescripts":    {},
+		"mroot":          {},
+		"mrow":           {},
+		"ms":             {},
+		"mspace":         {},
+		"msqrt":          {},
+		"mstyle":         {},
+		"msub":           {},
+		"msubsup":        {},
+		"msup":           {},
+		"mtable":         {},
+		"mtd":            {},
+		"mtext":          {},
+		"mtr":            {},
+		"munder":         {},
+		"munderover":     {},
+		"semantics":      {},
+	}
+
+	iframeAllowList = map[string]struct{}{
+		"bandcamp.com":         {},
+		"cdn.embedly.com":      {},
+		"dailymotion.com":      {},
+		"open.spotify.com":     {},
+		"player.bilibili.com":  {},
+		"player.twitch.tv":     {},
+		"player.vimeo.com":     {},
+		"soundcloud.com":       {},
+		"vk.com":               {},
+		"w.soundcloud.com":     {},
+		"youtube-nocookie.com": {},
+		"youtube.com":          {},
+	}
+
+	blockedResourceURLSubstrings = []string{
+		"api.flattr.com",
+		"feeds.feedburner.com",
+		"feedsportal.com",
+		"pinterest.com/pin/create/button/",
+		"stats.wordpress.com",
+		"twitter.com/intent/tweet",
+		"twitter.com/share",
+		"facebook.com/sharer.php",
+		"linkedin.com/shareArticle",
+	}
+
+	// See https://www.iana.org/assignments/uri-schemes/uri-schemes.xhtml
+	validURISchemes = []string{
+		// Most commong schemes on top.
+		"https:",
+		"http:",
+
+		// Then the rest.
+		"apt:",
+		"bitcoin:",
+		"callto:",
+		"dav:",
+		"davs:",
+		"ed2k:",
+		"facetime:",
+		"feed:",
+		"ftp:",
+		"geo:",
+		"git:",
+		"gopher:",
+		"irc:",
+		"irc6:",
+		"ircs:",
+		"itms-apps:",
+		"itms:",
+		"magnet:",
+		"mailto:",
+		"news:",
+		"nntp:",
+		"rtmp:",
+		"sftp:",
+		"sip:",
+		"sips:",
+		"skype:",
+		"spotify:",
+		"ssh:",
+		"steam:",
+		"svn:",
+		"svn+ssh:",
+		"tel:",
+		"webcal:",
+		"xmpp:",
+
+		// iOS Apps
+		"opener:", // https://www.opener.link
+		"hack:",   // https://apps.apple.com/it/app/hack-for-hacker-news-reader/id1464477788?l=en-GB
+	}
+
+	dataAttributeAllowedPrefixes = []string{
+		"data:image/avif",
+		"data:image/apng",
+		"data:image/png",
+		"data:image/svg",
+		"data:image/svg+xml",
+		"data:image/jpg",
+		"data:image/jpeg",
+		"data:image/gif",
+		"data:image/webp",
 	}
 )
 
-// Sanitize returns safe HTML.
-func Sanitize(baseURL, input string) string {
-	var buffer strings.Builder
+type SanitizerOptions struct {
+	OpenLinksInNewTab bool
+}
+
+func SanitizeHTML(baseURL, rawHTML string, sanitizerOptions *SanitizerOptions) string {
 	var tagStack []string
 	var parentTag string
 	var blockedStack []string
+	var buffer strings.Builder
 
-	tokenizer := html.NewTokenizer(strings.NewReader(input))
+	// Educated guess about how big the sanitized HTML will be,
+	// to reduce the amount of buffer re-allocations in this function.
+	estimatedRatio := len(rawHTML) * 3 / 4
+	buffer.Grow(estimatedRatio)
+
+	// Errors are a non-issue, so they're handled later in the function.
+	parsedBaseUrl, _ := url.Parse(baseURL)
+
+	tokenizer := html.NewTokenizer(strings.NewReader(rawHTML))
 	for {
 		if tokenizer.Next() == html.ErrorToken {
 			err := tokenizer.Err()
@@ -99,7 +228,15 @@ func Sanitize(baseURL, input string) string {
 		}
 
 		token := tokenizer.Token()
-		tagName := token.DataAtom.String()
+
+		// Note: MathML elements are not fully supported by golang.org/x/net/html.
+		// See https://github.com/golang/net/blob/master/html/atom/gen.go
+		// and https://github.com/golang/net/blob/master/html/atom/table.go
+		tagName := token.Data
+		if tagName == "" {
+			continue
+		}
+
 		switch token.Type {
 		case html.TextToken:
 			if len(blockedStack) > 0 {
@@ -126,7 +263,7 @@ func Sanitize(baseURL, input string) string {
 			}
 
 			if len(blockedStack) == 0 && isValidTag(tagName) {
-				attrNames, htmlAttributes := sanitizeAttributes(baseURL, tagName, token.Attr)
+				attrNames, htmlAttributes := sanitizeAttributes(parsedBaseUrl, tagName, token.Attr, sanitizerOptions)
 				if hasRequiredAttributes(tagName, attrNames) {
 					if len(attrNames) > 0 {
 						// Rewrite the start tag with allowed attributes.
@@ -154,7 +291,7 @@ func Sanitize(baseURL, input string) string {
 				continue
 			}
 			if len(blockedStack) == 0 && isValidTag(tagName) {
-				attrNames, htmlAttributes := sanitizeAttributes(baseURL, tagName, token.Attr)
+				attrNames, htmlAttributes := sanitizeAttributes(parsedBaseUrl, tagName, token.Attr, sanitizerOptions)
 				if hasRequiredAttributes(tagName, attrNames) {
 					if len(attrNames) > 0 {
 						buffer.WriteString("<" + tagName + " " + htmlAttributes + "/>")
@@ -167,38 +304,58 @@ func Sanitize(baseURL, input string) string {
 	}
 }
 
-func sanitizeAttributes(baseURL, tagName string, attributes []html.Attribute) ([]string, string) {
-	var htmlAttrs, attrNames []string
+func sanitizeAttributes(parsedBaseUrl *url.URL, tagName string, attributes []html.Attribute, sanitizerOptions *SanitizerOptions) ([]string, string) {
+	htmlAttrs := make([]string, 0, len(attributes))
+	attrNames := make([]string, 0, len(attributes))
 	var err error
-	var isImageLargerThanLayout bool
 	var isAnchorLink bool
 
-	if tagName == "img" {
-		imgWidth := getIntegerAttributeValue("width", attributes)
-		isImageLargerThanLayout = imgWidth > 750
-	}
-
 	for _, attribute := range attributes {
-		value := attribute.Val
-
 		if !isValidAttribute(tagName, attribute.Key) {
 			continue
 		}
 
-		if (tagName == "img" || tagName == "source") && attribute.Key == "srcset" {
-			value = sanitizeSrcsetAttr(baseURL, value)
-		}
+		value := attribute.Val
 
-		if tagName == "img" && (attribute.Key == "width" || attribute.Key == "height") {
-			if isImageLargerThanLayout || !isPositiveInteger(value) {
-				continue
+		switch tagName {
+		case "math":
+			if attribute.Key == "xmlns" {
+				if value != "http://www.w3.org/1998/Math/MathML" {
+					value = "http://www.w3.org/1998/Math/MathML"
+				}
+			}
+		case "img":
+			switch attribute.Key {
+			case "fetchpriority":
+				if !isValidFetchPriorityValue(value) {
+					continue
+				}
+			case "decoding":
+				if !isValidDecodingValue(value) {
+					continue
+				}
+			case "width", "height":
+				if !isPositiveInteger(value) {
+					continue
+				}
+
+				// Discard width and height attributes when width is larger than Miniflux layout (750px)
+				if imgWidth := getIntegerAttributeValue("width", attributes); imgWidth > 750 {
+					continue
+				}
+			case "srcset":
+				value = sanitizeSrcsetAttr(parsedBaseUrl, value)
+			}
+		case "source":
+			if attribute.Key == "srcset" {
+				value = sanitizeSrcsetAttr(parsedBaseUrl, value)
 			}
 		}
 
 		if isExternalResourceAttribute(attribute.Key) {
 			switch {
 			case tagName == "iframe":
-				if !isValidIframeSource(baseURL, attribute.Val) {
+				if !isValidIframeSource(attribute.Val) {
 					continue
 				}
 				value = rewriteIframeURL(attribute.Val)
@@ -208,7 +365,7 @@ func sanitizeAttributes(baseURL, tagName string, attributes []html.Attribute) ([
 				value = attribute.Val
 				isAnchorLink = true
 			default:
-				value, err = urllib.AbsoluteURL(baseURL, value)
+				value, err = absoluteURLParsedBase(parsedBaseUrl, value)
 				if err != nil {
 					continue
 				}
@@ -217,7 +374,9 @@ func sanitizeAttributes(baseURL, tagName string, attributes []html.Attribute) ([
 					continue
 				}
 
-				if cleanedURL, err := urlcleaner.RemoveTrackingParameters(value); err == nil {
+				// TODO use feedURL instead of baseURL twice.
+				parsedValueUrl, _ := url.Parse(value)
+				if cleanedURL, err := urlcleaner.RemoveTrackingParameters(parsedBaseUrl, parsedBaseUrl, parsedValueUrl); err == nil {
 					value = cleanedURL
 				}
 			}
@@ -228,7 +387,7 @@ func sanitizeAttributes(baseURL, tagName string, attributes []html.Attribute) ([
 	}
 
 	if !isAnchorLink {
-		extraAttrNames, extraHTMLAttributes := getExtraAttributes(tagName)
+		extraAttrNames, extraHTMLAttributes := getExtraAttributes(tagName, sanitizerOptions)
 		if len(extraAttrNames) > 0 {
 			attrNames = append(attrNames, extraAttrNames...)
 			htmlAttrs = append(htmlAttrs, extraHTMLAttributes...)
@@ -238,10 +397,16 @@ func sanitizeAttributes(baseURL, tagName string, attributes []html.Attribute) ([
 	return attrNames, strings.Join(htmlAttrs, " ")
 }
 
-func getExtraAttributes(tagName string) ([]string, []string) {
+func getExtraAttributes(tagName string, sanitizerOptions *SanitizerOptions) ([]string, []string) {
 	switch tagName {
 	case "a":
-		return []string{"rel", "target", "referrerpolicy"}, []string{`rel="noopener noreferrer"`, `target="_blank"`, `referrerpolicy="no-referrer"`}
+		attributeNames := []string{"rel", "referrerpolicy"}
+		htmlAttributes := []string{`rel="noopener noreferrer"`, `referrerpolicy="no-referrer"`}
+		if sanitizerOptions.OpenLinksInNewTab {
+			attributeNames = append(attributeNames, "target")
+			htmlAttributes = append(htmlAttributes, `target="_blank"`)
+		}
+		return attributeNames, htmlAttributes
 	case "video", "audio":
 		return []string{"controls"}, []string{"controls"}
 	case "iframe":
@@ -254,12 +419,12 @@ func getExtraAttributes(tagName string) ([]string, []string) {
 }
 
 func isValidTag(tagName string) bool {
-	_, ok := tagAllowList[tagName]
+	_, ok := allowedHTMLTagsAndAttributes[tagName]
 	return ok
 }
 
 func isValidAttribute(tagName, attributeName string) bool {
-	if attributes, ok := tagAllowList[tagName]; ok {
+	if attributes, ok := allowedHTMLTagsAndAttributes[tagName]; ok {
 		return slices.Contains(attributes, attributeName)
 	}
 	return false
@@ -282,7 +447,7 @@ func isPixelTracker(tagName string, attributes []html.Attribute) bool {
 	hasWidth := false
 
 	for _, attribute := range attributes {
-		if attribute.Val == "1" {
+		if attribute.Val == "1" || attribute.Val == "0" {
 			switch attribute.Key {
 			case "height":
 				hasHeight = true
@@ -302,103 +467,51 @@ func hasRequiredAttributes(tagName string, attributes []string) bool {
 	case "iframe":
 		return slices.Contains(attributes, "src")
 	case "source", "img":
-		return slices.Contains(attributes, "src") || slices.Contains(attributes, "srcset")
+		for _, attribute := range attributes {
+			if attribute == "src" || attribute == "srcset" {
+				return true
+			}
+		}
+		return false
 	default:
 		return true
 	}
 }
 
-// See https://www.iana.org/assignments/uri-schemes/uri-schemes.xhtml
-func hasValidURIScheme(src string) bool {
-	whitelist := []string{
-		"apt:",
-		"bitcoin:",
-		"callto:",
-		"dav:",
-		"davs:",
-		"ed2k://",
-		"facetime://",
-		"feed:",
-		"ftp://",
-		"geo:",
-		"gopher://",
-		"git://",
-		"http://",
-		"https://",
-		"irc://",
-		"irc6://",
-		"ircs://",
-		"itms://",
-		"itms-apps://",
-		"magnet:",
-		"mailto:",
-		"news:",
-		"nntp:",
-		"rtmp://",
-		"sip:",
-		"sips:",
-		"skype:",
-		"spotify:",
-		"ssh://",
-		"sftp://",
-		"steam://",
-		"svn://",
-		"svn+ssh://",
-		"tel:",
-		"webcal://",
-		"xmpp:",
-
-		// iOS Apps
-		"opener://", // https://www.opener.link
-		"hack://",   // https://apps.apple.com/it/app/hack-for-hacker-news-reader/id1464477788?l=en-GB
+func hasValidURIScheme(absoluteURL string) bool {
+	for _, scheme := range validURISchemes {
+		if strings.HasPrefix(absoluteURL, scheme) {
+			return true
+		}
 	}
-
-	return slices.ContainsFunc(whitelist, func(prefix string) bool {
-		return strings.HasPrefix(src, prefix)
-	})
+	return false
 }
 
-func isBlockedResource(src string) bool {
-	blacklist := []string{
-		"feedsportal.com",
-		"api.flattr.com",
-		"stats.wordpress.com",
-		"twitter.com/share",
-		"feeds.feedburner.com",
+func isBlockedResource(absoluteURL string) bool {
+	for _, blockedURL := range blockedResourceURLSubstrings {
+		if strings.Contains(absoluteURL, blockedURL) {
+			return true
+		}
 	}
-
-	return slices.ContainsFunc(blacklist, func(element string) bool {
-		return strings.Contains(src, element)
-	})
+	return false
 }
 
-func isValidIframeSource(baseURL, src string) bool {
-	whitelist := []string{
-		"bandcamp.com",
-		"cdn.embedly.com",
-		"player.bilibili.com",
-		"player.twitch.tv",
-		"player.vimeo.com",
-		"soundcloud.com",
-		"vk.com",
-		"w.soundcloud.com",
-		"dailymotion.com",
-		"youtube-nocookie.com",
-		"youtube.com",
-	}
-	domain := urllib.Domain(src)
+func isValidIframeSource(iframeSourceURL string) bool {
+	iframeSourceDomain := urllib.DomainWithoutWWW(iframeSourceURL)
 
-	// allow iframe from same origin
-	if urllib.Domain(baseURL) == domain {
+	if _, ok := iframeAllowList[iframeSourceDomain]; ok {
 		return true
 	}
 
-	// allow iframe from custom invidious instance
-	if config.Opts.InvidiousInstance() == domain {
+	if ytDomain := config.Opts.YouTubeEmbedDomain(); ytDomain != "" && iframeSourceDomain == strings.TrimPrefix(ytDomain, "www.") {
 		return true
 	}
 
-	return slices.Contains(whitelist, strings.TrimPrefix(domain, "www."))
+	if invidiousInstance := config.Opts.InvidiousInstance(); invidiousInstance != "" && iframeSourceDomain == strings.TrimPrefix(invidiousInstance, "www.") {
+		return true
+	}
+
+	return false
 }
 
 func rewriteIframeURL(link string) string {
@@ -409,11 +522,11 @@ func rewriteIframeURL(link string) string {
 
 	switch strings.TrimPrefix(u.Hostname(), "www.") {
 	case "youtube.com":
-		if strings.HasPrefix(u.Path, "/embed/") {
+		if pathWithoutEmbed, ok := strings.CutPrefix(u.Path, "/embed/"); ok {
 			if len(u.RawQuery) > 0 {
-				return config.Opts.YouTubeEmbedUrlOverride() + strings.TrimPrefix(u.Path, "/embed/") + "?" + u.RawQuery
+				return config.Opts.YouTubeEmbedUrlOverride() + pathWithoutEmbed + "?" + u.RawQuery
 			}
-			return config.Opts.YouTubeEmbedUrlOverride() + strings.TrimPrefix(u.Path, "/embed/")
+			return config.Opts.YouTubeEmbedUrlOverride() + pathWithoutEmbed
 		}
 	case "player.vimeo.com":
 		// See https://help.vimeo.com/hc/en-us/articles/12426260232977-About-Player-parameters
@@ -429,20 +542,18 @@ func rewriteIframeURL(link string) string {
 }
 
 func isBlockedTag(tagName string) bool {
-	blacklist := []string{
-		"noscript",
-		"script",
-		"style",
+	switch tagName {
+	case "noscript", "script", "style":
+		return true
 	}
-
-	return slices.Contains(blacklist, tagName)
+	return false
 }
 
-func sanitizeSrcsetAttr(baseURL, value string) string {
+func sanitizeSrcsetAttr(parsedBaseURL *url.URL, value string) string {
 	imageCandidates := ParseSrcSetAttribute(value)
 
 	for _, imageCandidate := range imageCandidates {
-		if absoluteURL, err := urllib.AbsoluteURL(baseURL, imageCandidate.ImageURL); err == nil {
+		if absoluteURL, err := absoluteURLParsedBase(parsedBaseURL, imageCandidate.ImageURL); err == nil {
 			imageCandidate.ImageURL = absoluteURL
 		}
 	}
@@ -451,23 +562,18 @@ func sanitizeSrcsetAttr(baseURL, value string) string {
 }
 
 func isValidDataAttribute(value string) bool {
-	var dataAttributeAllowList = []string{
-		"data:image/avif",
-		"data:image/apng",
-		"data:image/png",
-		"data:image/svg",
-		"data:image/svg+xml",
-		"data:image/jpg",
-		"data:image/jpeg",
-		"data:image/gif",
-		"data:image/webp",
+	for _, prefix := range dataAttributeAllowedPrefixes {
+		if strings.HasPrefix(value, prefix) {
+			return true
+		}
 	}
-	return slices.ContainsFunc(dataAttributeAllowList, func(prefix string) bool {
-		return strings.HasPrefix(value, prefix)
-	})
+	return false
 }
 
 func isPositiveInteger(value string) bool {
+	if value == "" {
+		return false
+	}
 	if number, err := strconv.Atoi(value); err == nil {
 		return number > 0
 	}
@@ -482,4 +588,36 @@ func getIntegerAttributeValue(name string, attributes []html.Attribute) int {
 		}
 	}
 	return 0
+}
+
+func isValidFetchPriorityValue(value string) bool {
+	switch value {
+	case "high", "low", "auto":
+		return true
+	}
+	return false
+}
+
+func isValidDecodingValue(value string) bool {
+	switch value {
+	case "sync", "async", "auto":
+		return true
+	}
+	return false
+}
+
+// absoluteURLParsedBase is used instead of urllib.AbsoluteURL to avoid parsing baseURL over and over.
+func absoluteURLParsedBase(parsedBaseURL *url.URL, input string) (string, error) {
+	absURL, u, err := urllib.GetAbsoluteURL(input)
+	if err != nil {
+		return "", err
+	}
+	if absURL != "" {
+		return absURL, nil
+	}
+	if parsedBaseURL == nil {
+		return "", nil
+	}
+
+	return parsedBaseURL.ResolveReference(u).String(), nil
 }

@@ -4,10 +4,11 @@
 package storage // import "miniflux.app/v2/internal/storage"
 
 import (
+	"crypto/rand"
 	"database/sql"
 	"fmt"
+	"time"
 
-	"miniflux.app/v2/internal/crypto"
 	"miniflux.app/v2/internal/model"
 )
 
@@ -19,9 +20,9 @@ func (s *Storage) CreateAppSessionWithUserPrefs(userID int64) (*model.Session, e
 	}
 
 	session := model.Session{
-		ID: crypto.GenerateRandomString(32),
+		ID: rand.Text(),
 		Data: &model.SessionData{
-			CSRF:     crypto.GenerateRandomString(64),
+			CSRF:     rand.Text(),
 			Theme:    user.Theme,
 			Language: user.Language,
 		},
@@ -33,9 +34,9 @@ func (s *Storage) CreateAppSessionWithUserPrefs(userID int64) (*model.Session, e
 // CreateAppSession creates a new application session.
 func (s *Storage) CreateAppSession() (*model.Session, error) {
 	session := model.Session{
-		ID: crypto.GenerateRandomString(32),
+		ID: rand.Text(),
 		Data: &model.SessionData{
-			CSRF: crypto.GenerateRandomString(64),
+			CSRF: rand.Text(),
 		},
 	}
 
@@ -70,7 +71,7 @@ func (s *Storage) UpdateAppSessionField(sessionID, field string, value any) erro
 	return nil
 }
 
-func (s *Storage) UpdateAppSessionObjectField(sessionID, field string, value interface{}) error {
+func (s *Storage) UpdateAppSessionObjectField(sessionID, field string, value any) error {
 	query := `
 		UPDATE
 			sessions
@@ -122,14 +123,17 @@ func (s *Storage) FlushAllSessions() (err error) {
 	return nil
 }
 
-// CleanOldSessions removes sessions older than specified days.
-func (s *Storage) CleanOldSessions(days int) int64 {
+// CleanOldSessions removes sessions older than specified interval (24h minimum).
+func (s *Storage) CleanOldSessions(interval time.Duration) int64 {
 	query := `
 		DELETE FROM
 			sessions
 		WHERE
 			created_at < now() - $1::interval
 	`
+
+	days := max(int(interval/(24*time.Hour)), 1)
+
 	result, err := s.db.Exec(query, fmt.Sprintf("%d days", days))
 	if err != nil {
 		return 0

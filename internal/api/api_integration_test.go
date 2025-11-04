@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
+	"math/rand/v2"
 	"os"
 	"strings"
 	"testing"
@@ -729,6 +729,116 @@ func TestRegularUsersCannotUpdateOtherUsers(t *testing.T) {
 	}
 }
 
+func TestAPIKeysEndpoint(t *testing.T) {
+	testConfig := newIntegrationTestConfig()
+	if !testConfig.isConfigured() {
+		t.Skip(skipIntegrationTestsMessage)
+	}
+
+	adminClient := miniflux.NewClient(testConfig.testBaseURL, testConfig.testAdminUsername, testConfig.testAdminPassword)
+	regularTestUser, err := adminClient.CreateUser(testConfig.genRandomUsername(), testConfig.testRegularPassword, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer adminClient.DeleteUser(regularTestUser.ID)
+
+	regularUserClient := miniflux.NewClient(testConfig.testBaseURL, regularTestUser.Username, testConfig.testRegularPassword)
+	apiKeys, err := regularUserClient.APIKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(apiKeys) != 0 {
+		t.Fatalf(`Expected no API keys, got %d`, len(apiKeys))
+	}
+
+	// Create an API key for the user.
+	apiKey, err := regularUserClient.CreateAPIKey("Test API Key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if apiKey.ID == 0 {
+		t.Fatalf(`Invalid API key ID, got "%v"`, apiKey.ID)
+	}
+	if apiKey.UserID != regularTestUser.ID {
+		t.Fatalf(`Invalid user ID for API key, got "%v" instead of "%v"`, apiKey.UserID, regularTestUser.ID)
+	}
+	if apiKey.Token == "" {
+		t.Fatalf(`Invalid API key token, got "%v"`, apiKey.Token)
+	}
+	if apiKey.Description != "Test API Key" {
+		t.Fatalf(`Invalid API key description, got "%v" instead of "Test API Key"`, apiKey.Description)
+	}
+
+	// Create a duplicate API key with the same description.
+	if _, err := regularUserClient.CreateAPIKey("Test API Key"); err == nil {
+		t.Fatal(`Creating a duplicate API key with the same description should raise an error`)
+	}
+
+	// Fetch the API keys again.
+	apiKeys, err = regularUserClient.APIKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(apiKeys) != 1 {
+		t.Fatalf(`Expected 1 API key, got %d`, len(apiKeys))
+	}
+	if apiKeys[0].ID != apiKey.ID {
+		t.Fatalf(`Invalid API key ID, got "%v" instead of "%v"`, apiKeys[0].ID, apiKey.ID)
+	}
+	if apiKeys[0].UserID != regularTestUser.ID {
+		t.Fatalf(`Invalid user ID for API key, got "%v" instead of "%v"`, apiKeys[0].UserID, regularTestUser.ID)
+	}
+	if apiKeys[0].Token != apiKey.Token {
+		t.Fatalf(`Invalid API key token, got "%v" instead of "%v"`, apiKeys[0].Token, apiKey.Token)
+	}
+	if apiKeys[0].Description != "Test API Key" {
+		t.Fatalf(`Invalid API key description, got "%v" instead of "Test API Key"`, apiKeys[0].Description)
+	}
+
+	// Create a new client using the API key.
+	apiKeyClient := miniflux.NewClient(testConfig.testBaseURL, apiKey.Token)
+
+	// Fetch the user using the API key client.
+	user, err := apiKeyClient.Me()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify the user matches the regular test user.
+	if user.ID != regularTestUser.ID {
+		t.Fatalf(`Expected user ID %d, got %d`, regularTestUser.ID, user.ID)
+	}
+
+	// Delete the API key.
+	if err := regularUserClient.DeleteAPIKey(apiKey.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify the API key is deleted.
+	apiKeys, err = regularUserClient.APIKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(apiKeys) != 0 {
+		t.Fatalf(`Expected no API keys after deletion, got %d`, len(apiKeys))
+	}
+
+	// Try to delete the API key again, it should return an error.
+	err = regularUserClient.DeleteAPIKey(apiKey.ID)
+	if err == nil {
+		t.Fatal(`Deleting a non-existent API key should raise an error`)
+	}
+	if !errors.Is(err, miniflux.ErrNotFound) {
+		t.Fatalf(`Expected "not found" error, got %v`, err)
+	}
+
+	// Try to create an API key with an empty description.
+	if _, err := regularUserClient.CreateAPIKey(""); err == nil {
+		t.Fatal(`Creating an API key with an empty description should raise an error`)
+	}
+}
+
 func TestMarkUserAsReadEndpoint(t *testing.T) {
 	testConfig := newIntegrationTestConfig()
 	if !testConfig.isConfigured() {
@@ -1152,6 +1262,14 @@ func TestGetCategoriesEndpoint(t *testing.T) {
 		t.Fatalf(`Invalid title, got %q instead of %q`, categories[0].Title, "All")
 	}
 
+	if categories[0].FeedCount != nil {
+		t.Errorf(`Expected FeedCount to be nil, got %d`, *categories[0].FeedCount)
+	}
+
+	if categories[0].TotalUnread != nil {
+		t.Errorf(`Expected TotalUnread to be nil, got %d`, *categories[0].TotalUnread)
+	}
+
 	if categories[1].ID != category.ID {
 		t.Fatalf(`Invalid categoryID, got %d`, categories[0].ID)
 	}
@@ -1162,6 +1280,40 @@ func TestGetCategoriesEndpoint(t *testing.T) {
 
 	if categories[1].Title != "My category" {
 		t.Fatalf(`Invalid title, got %q instead of %q`, categories[0].Title, "My category")
+	}
+
+	if categories[1].FeedCount != nil {
+		t.Errorf(`Expected FeedCount to be nil, got %d`, *categories[1].FeedCount)
+	}
+
+	if categories[1].TotalUnread != nil {
+		t.Errorf(`Expected TotalUnread to be nil, got %d`, *categories[1].TotalUnread)
+	}
+
+	categories, err = regularUserClient.CategoriesWithCounters()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(categories) != 2 {
+		t.Fatalf(`Invalid number of categories, got %d instead of %d`, len(categories), 1)
+	}
+
+	if categories[1].FeedCount == nil {
+		t.Fatalf(`Expected FeedCount to be not nil`)
+	}
+
+	if categories[1].TotalUnread == nil {
+		t.Fatalf(`Expected TotalUnread to be not nil`)
+	}
+
+	expectedCounterValue := 0
+	if *categories[1].FeedCount != expectedCounterValue {
+		t.Errorf(`Expected FeedCount to be %d, got %d`, expectedCounterValue, *categories[1].FeedCount)
+	}
+
+	if *categories[1].TotalUnread != expectedCounterValue {
+		t.Errorf(`Expected TotalUnread to be %d, got %d`, expectedCounterValue, *categories[1].TotalUnread)
 	}
 }
 
@@ -2229,7 +2381,6 @@ func TestGetGlobalEntriesEndpoint(t *testing.T) {
 	}
 
 	feedIDEntry, err := regularUserClient.Feed(feedID)
-
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2258,6 +2409,64 @@ func TestGetGlobalEntriesEndpoint(t *testing.T) {
 
 	if len(globallyVisibleEntries.Entries) != 0 {
 		t.Fatalf(`Expected no entries, got %d`, len(globallyVisibleEntries.Entries))
+	}
+}
+
+func TestCannotGetRemovedEntries(t *testing.T) {
+	testConfig := newIntegrationTestConfig()
+	if !testConfig.isConfigured() {
+		t.Skip(skipIntegrationTestsMessage)
+	}
+
+	adminClient := miniflux.NewClient(testConfig.testBaseURL, testConfig.testAdminUsername, testConfig.testAdminPassword)
+
+	regularTestUser, err := adminClient.CreateUser(testConfig.genRandomUsername(), testConfig.testRegularPassword, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer adminClient.DeleteUser(regularTestUser.ID)
+
+	regularUserClient := miniflux.NewClient(testConfig.testBaseURL, regularTestUser.Username, testConfig.testRegularPassword)
+
+	feedID, err := regularUserClient.CreateFeed(&miniflux.FeedCreationRequest{
+		FeedURL: testConfig.testFeedURL,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	feedEntries, err := regularUserClient.Entries(&miniflux.Filter{FeedID: feedID})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if feedEntries.Total == 0 {
+		t.Fatalf(`Expected at least one entry, got none`)
+	}
+
+	if err := regularUserClient.UpdateEntries([]int64{feedEntries.Entries[0].ID}, miniflux.EntryStatusRemoved); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := regularUserClient.Entry(feedEntries.Entries[0].ID); err != miniflux.ErrNotFound {
+		t.Fatalf(`Expected entry to be not found, got %v`, err)
+	}
+
+	if _, err := regularUserClient.FeedEntry(feedID, feedEntries.Entries[0].ID); err != miniflux.ErrNotFound {
+		t.Fatalf(`Expected entry to be not found, got %v`, err)
+	}
+
+	if _, err := regularUserClient.CategoryEntry(feedEntries.Entries[0].Feed.Category.ID, feedEntries.Entries[0].ID); err != miniflux.ErrNotFound {
+		t.Fatalf(`Expected entry to be not found, got %v`, err)
+	}
+
+	updatedFeedEntries, err := regularUserClient.Entries(&miniflux.Filter{FeedID: feedID})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if updatedFeedEntries.Total != feedEntries.Total-1 {
+		t.Fatalf(`Expected %d entries, got %d`, feedEntries.Total-1, updatedFeedEntries.Total)
 	}
 }
 
@@ -2539,7 +2748,7 @@ func TestUpdateEntryEndpoint(t *testing.T) {
 	}
 }
 
-func TestToggleBookmarkEndpoint(t *testing.T) {
+func TestToggleStarredEndpoint(t *testing.T) {
 	testConfig := newIntegrationTestConfig()
 	if !testConfig.isConfigured() {
 		t.Skip(skipIntegrationTestsMessage)
@@ -2567,7 +2776,7 @@ func TestToggleBookmarkEndpoint(t *testing.T) {
 		t.Fatalf(`Failed to get entries: %v`, err)
 	}
 
-	if err := regularUserClient.ToggleBookmark(result.Entries[0].ID); err != nil {
+	if err := regularUserClient.ToggleStarred(result.Entries[0].ID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -2577,7 +2786,7 @@ func TestToggleBookmarkEndpoint(t *testing.T) {
 	}
 
 	if !entry.Starred {
-		t.Fatalf(`The entry should be bookmarked`)
+		t.Fatalf(`The entry should be starred`)
 	}
 }
 
@@ -2721,14 +2930,5 @@ func TestFlushHistoryEndpoint(t *testing.T) {
 
 	if readEntries.Total != 0 {
 		t.Fatalf(`Invalid total, got %d`, readEntries.Total)
-	}
-
-	removedEntries, err := regularUserClient.Entries(&miniflux.Filter{Status: miniflux.EntryStatusRemoved})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if removedEntries.Total != 2 {
-		t.Fatalf(`Invalid total, got %d`, removedEntries.Total)
 	}
 }

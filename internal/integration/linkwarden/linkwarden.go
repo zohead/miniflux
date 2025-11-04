@@ -6,6 +6,7 @@ package linkwarden // import "miniflux.app/v2/internal/integration/linkwarden"
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -27,7 +28,7 @@ func NewClient(baseURL, apiKey string) *Client {
 
 func (c *Client) CreateBookmark(entryURL, entryTitle string) error {
 	if c.baseURL == "" || c.apiKey == "" {
-		return fmt.Errorf("linkwarden: missing base URL or API key")
+		return errors.New("linkwarden: missing base URL or API key")
 	}
 
 	apiEndpoint, err := urllib.JoinBaseURLAndPath(c.baseURL, "/api/v1/links")
@@ -35,12 +36,9 @@ func (c *Client) CreateBookmark(entryURL, entryTitle string) error {
 		return fmt.Errorf(`linkwarden: invalid API endpoint: %v`, err)
 	}
 
-	requestBody, err := json.Marshal(&linkwardenBookmark{
-		Url:         entryURL,
-		Name:        "",
-		Description: "",
-		Tags:        []string{},
-		Collection:  map[string]interface{}{},
+	requestBody, err := json.Marshal(map[string]string{
+		"url":  entryURL,
+		"name": entryTitle,
 	})
 
 	if err != nil {
@@ -54,8 +52,7 @@ func (c *Client) CreateBookmark(entryURL, entryTitle string) error {
 
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("User-Agent", "Miniflux/"+version.Version)
-	request.AddCookie(&http.Cookie{Name: "__Secure-next-auth.session-token", Value: c.apiKey})
-	request.AddCookie(&http.Cookie{Name: "next-auth.session-token", Value: c.apiKey})
+	request.Header.Set("Authorization", "Bearer "+c.apiKey)
 
 	httpClient := &http.Client{Timeout: defaultClientTimeout}
 	response, err := httpClient.Do(request)
@@ -69,12 +66,4 @@ func (c *Client) CreateBookmark(entryURL, entryTitle string) error {
 	}
 
 	return nil
-}
-
-type linkwardenBookmark struct {
-	Url         string                 `json:"url"`
-	Name        string                 `json:"name"`
-	Description string                 `json:"description"`
-	Tags        []string               `json:"tags"`
-	Collection  map[string]interface{} `json:"collection"`
 }

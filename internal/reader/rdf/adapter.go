@@ -16,19 +16,16 @@ import (
 	"miniflux.app/v2/internal/urllib"
 )
 
-type RDFAdapter struct {
-	rdf *RDF
+type rdfAdapter struct {
+	rdf *rdf
 }
 
-func NewRDFAdapter(rdf *RDF) *RDFAdapter {
-	return &RDFAdapter{rdf}
-}
-
-func (r *RDFAdapter) BuildFeed(baseURL string) *model.Feed {
+func (r *rdfAdapter) buildFeed(baseURL string) *model.Feed {
 	feed := &model.Feed{
-		Title:   stripTags(r.rdf.Channel.Title),
-		FeedURL: strings.TrimSpace(baseURL),
-		SiteURL: strings.TrimSpace(r.rdf.Channel.Link),
+		Title:       stripTags(r.rdf.Channel.Title),
+		FeedURL:     strings.TrimSpace(baseURL),
+		SiteURL:     strings.TrimSpace(r.rdf.Channel.Link),
+		Description: strings.TrimSpace(r.rdf.Channel.Description),
 	}
 
 	if feed.Title == "" {
@@ -79,7 +76,7 @@ func (r *RDFAdapter) BuildFeed(baseURL string) *model.Feed {
 			hashValue = item.Title + item.Description // Fallback to the title and description if the link is empty.
 		}
 
-		entry.Hash = crypto.Hash(hashValue)
+		entry.Hash = crypto.SHA256(hashValue)
 
 		// Populate the entry date.
 		entry.Date = time.Now()

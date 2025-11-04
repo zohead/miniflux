@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"time"
 	"os"
 	"strings"
@@ -19,21 +20,21 @@ import (
 )
 
 const (
-	defaultHTTPClientTimeout     = 20
-	defaultHTTPClientMaxBodySize = 15 * 1024 * 1024
-	defaultAcceptHeader          = "application/xml, application/atom+xml, application/rss+xml, application/rdf+xml, application/feed+json, text/html, */*;q=0.9"
+	defaultHTTPClientTimeout = 20 * time.Second
+	defaultAcceptHeader      = "application/xml, application/atom+xml, application/rss+xml, application/rdf+xml, application/feed+json, text/html, */*;q=0.9"
 )
 
 type RequestBuilder struct {
-	headers          http.Header
-	clientProxyURL   *url.URL
-	useClientProxy   bool
-	clientTimeout    int
-	withoutRedirects bool
-	ignoreTLSErrors  bool
-	disableHTTP2     bool
-	proxyRotator     *proxyrotator.ProxyRotator
-	feedProxyURL     string
+	headers            http.Header
+	clientProxyURL     *url.URL
+	clientTimeout      time.Duration
+	useClientProxy     bool
+	withoutRedirects   bool
+	ignoreTLSErrors    bool
+	disableHTTP2       bool
+	disableCompression bool
+	proxyRotator       *proxyrotator.ProxyRotator
+	feedProxyURL       string
 }
 
 func NewRequestBuilder() *RequestBuilder {
@@ -105,7 +106,7 @@ func (r *RequestBuilder) WithCustomFeedProxyURL(proxyURL string) *RequestBuilder
 	return r
 }
 
-func (r *RequestBuilder) WithTimeout(timeout int) *RequestBuilder {
+func (r *RequestBuilder) WithTimeout(timeout time.Duration) *RequestBuilder {
 	r.clientTimeout = timeout
 	return r
 }
@@ -125,39 +126,35 @@ func (r *RequestBuilder) IgnoreTLSErrors(value bool) *RequestBuilder {
 	return r
 }
 
+func (r *RequestBuilder) WithoutCompression() *RequestBuilder {
+	r.disableCompression = true
+	return r
+}
+
 func (r *RequestBuilder) ExecuteRequest(requestURL string) (*http.Response, error) {
-	// We get the safe ciphers
-	ciphers := tls.CipherSuites()
-	if r.ignoreTLSErrors {
-		// and the insecure ones if we are ignoring TLS errors. This allows to connect to badly configured servers anyway
-		ciphers = append(ciphers, tls.InsecureCipherSuites()...)
-	}
-	cipherSuites := []uint16{}
-	for _, cipher := range ciphers {
-		cipherSuites = append(cipherSuites, cipher.ID)
-	}
 	transport := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		// Setting `DialContext` disables HTTP/2, this option forces the transport to try HTTP/2 regardless.
 		ForceAttemptHTTP2: true,
 		DialContext: (&net.Dialer{
-			// Default is 30s.
-			Timeout: 10 * time.Second,
-
-			// Default is 30s.
-			KeepAlive: 15 * time.Second,
+			Timeout:   10 * time.Second, // Default is 30s.
+			KeepAlive: 15 * time.Second, // Default is 30s.
 		}).DialContext,
+		MaxIdleConns:    50,               // Default is 100.
+		IdleConnTimeout: 10 * time.Second, // Default is 90s.
+	}
 
-		// Default is 100.
-		MaxIdleConns: 50,
-
-		// Default is 90s.
-		IdleConnTimeout: 10 * time.Second,
-
-		TLSClientConfig: &tls.Config{
+	if r.ignoreTLSErrors {
+		//  Add insecure ciphers if we are ignoring TLS errors. This allows to connect to badly configured servers anyway
+		ciphers := slices.Concat(tls.CipherSuites(), tls.InsecureCipherSuites())
+		cipherSuites := make([]uint16, 0, len(ciphers))
+		for _, cipher := range ciphers {
+			cipherSuites = append(cipherSuites, cipher.ID)
+		}
+		transport.TLSClientConfig = &tls.Config{
 			CipherSuites:       cipherSuites,
-			InsecureSkipVerify: r.ignoreTLSErrors,
-		},
+			InsecureSkipVerify: true,
+		}
 	}
 
 	if r.disableHTTP2 {
@@ -190,7 +187,7 @@ func (r *RequestBuilder) ExecuteRequest(requestURL string) (*http.Response, erro
 	}
 
 	client := &http.Client{
-		Timeout: time.Duration(r.clientTimeout) * time.Second,
+		Timeout: r.clientTimeout,
 	}
 
 	if r.withoutRedirects {
@@ -207,13 +204,21 @@ func (r *RequestBuilder) ExecuteRequest(requestURL string) (*http.Response, erro
 	}
 
 	req.Header = r.headers
-	req.Header.Set("Accept-Encoding", "br, gzip")
+	if r.disableCompression {
+		req.Header.Set("Accept-Encoding", "identity")
+	} else {
+		req.Header.Set("Accept-Encoding", "br, gzip")
+	}
 
 	var thost string = strings.ToUpper(req.URL.Hostname())
 	thost = strings.Replace(thost, ".", "_", -1)
 	thost = strings.Replace(thost, "-", "_", -1)
+
 	accept_val, accept_ok := os.LookupEnv("HTTP_CLIENT_ACCEPT_" + thost)
-	if !accept_ok {
+
+	// Set default Accept header if not already set.
+	// Note that for the media proxy requests, we need to forward the browser Accept header.
+	if !accept_ok && req.Header.Get("Accept") == "" {
 		req.Header.Set("Accept", defaultAcceptHeader)
 	} else if accept_val != "" && accept_val != "-" {
 		req.Header.Set("Accept", accept_val)

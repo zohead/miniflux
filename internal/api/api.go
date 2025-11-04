@@ -67,7 +67,8 @@ func Serve(router *mux.Router, store *storage.Storage, pool *worker.Pool) {
 	sr.HandleFunc("/entries", handler.setEntryStatus).Methods(http.MethodPut)
 	sr.HandleFunc("/entries/{entryID}", handler.getEntry).Methods(http.MethodGet)
 	sr.HandleFunc("/entries/{entryID}", handler.updateEntry).Methods(http.MethodPut)
-	sr.HandleFunc("/entries/{entryID}/bookmark", handler.toggleBookmark).Methods(http.MethodPut)
+	sr.HandleFunc("/entries/{entryID}/bookmark", handler.toggleStarred).Methods(http.MethodPut)
+	sr.HandleFunc("/entries/{entryID}/star", handler.toggleStarred).Methods(http.MethodPut)
 	sr.HandleFunc("/entries/{entryID}/save", handler.saveEntry).Methods(http.MethodPost)
 	sr.HandleFunc("/entries/{entryID}/fetch-content", handler.fetchContent).Methods(http.MethodGet)
 	sr.HandleFunc("/flush-history", handler.flushHistory).Methods(http.MethodPut, http.MethodDelete)
@@ -76,6 +77,9 @@ func Serve(router *mux.Router, store *storage.Storage, pool *worker.Pool) {
 	sr.HandleFunc("/enclosures/{enclosureID}", handler.updateEnclosureByID).Methods(http.MethodPut)
 	sr.HandleFunc("/integrations/status", handler.getIntegrationsStatus).Methods(http.MethodGet)
 	sr.HandleFunc("/version", handler.versionHandler).Methods(http.MethodGet)
+	sr.HandleFunc("/api-keys", handler.createAPIKey).Methods(http.MethodPost)
+	sr.HandleFunc("/api-keys", handler.getAPIKeys).Methods(http.MethodGet)
+	sr.HandleFunc("/api-keys/{apiKeyID}", handler.deleteAPIKey).Methods(http.MethodDelete)
 }
 
 func (h *handler) versionHandler(w http.ResponseWriter, r *http.Request) {

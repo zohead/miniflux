@@ -42,14 +42,14 @@ func (s *Storage) SetLastLogin(userID int64) error {
 // UserExists checks if a user exists by using the given username.
 func (s *Storage) UserExists(username string) bool {
 	var result bool
-	s.db.QueryRow(`SELECT true FROM users WHERE username=LOWER($1)`, username).Scan(&result)
+	s.db.QueryRow(`SELECT true FROM users WHERE username=LOWER($1) LIMIT 1`, username).Scan(&result)
 	return result
 }
 
 // AnotherUserExists checks if another user exists with the given username.
 func (s *Storage) AnotherUserExists(userID int64, username string) bool {
 	var result bool
-	s.db.QueryRow(`SELECT true FROM users WHERE id != $1 AND username=LOWER($2)`, userID, username).Scan(&result)
+	s.db.QueryRow(`SELECT true FROM users WHERE id != $1 AND username=LOWER($2) LIMIT 1`, userID, username).Scan(&result)
 	return result
 }
 
@@ -96,7 +96,9 @@ func (s *Storage) CreateUser(userCreationRequest *model.UserCreationRequest) (*m
 			mark_read_on_view,
 			media_playback_rate,
 			block_filter_entry_rules,
-			keep_filter_entry_rules
+			keep_filter_entry_rules,
+			always_open_external_links,
+			open_external_links_in_new_tab
 	`
 
 	tx, err := s.db.Begin()
@@ -140,6 +142,8 @@ func (s *Storage) CreateUser(userCreationRequest *model.UserCreationRequest) (*m
 		&user.MediaPlaybackRate,
 		&user.BlockFilterEntryRules,
 		&user.KeepFilterEntryRules,
+		&user.AlwaysOpenExternalLinks,
+		&user.OpenExternalLinksInNewTab,
 	)
 	if err != nil {
 		tx.Rollback()
@@ -204,9 +208,11 @@ func (s *Storage) UpdateUser(user *model.User) error {
 				mark_read_on_media_player_completion=$25,
 				media_playback_rate=$26,
 				block_filter_entry_rules=$27,
-				keep_filter_entry_rules=$28
+				keep_filter_entry_rules=$28,
+				always_open_external_links=$29,
+				open_external_links_in_new_tab=$30
 			WHERE
-				id=$29
+				id=$31
 		`
 
 		_, err = s.db.Exec(
@@ -239,6 +245,8 @@ func (s *Storage) UpdateUser(user *model.User) error {
 			user.MediaPlaybackRate,
 			user.BlockFilterEntryRules,
 			user.KeepFilterEntryRules,
+			user.AlwaysOpenExternalLinks,
+			user.OpenExternalLinksInNewTab,
 			user.ID,
 		)
 		if err != nil {
@@ -273,9 +281,11 @@ func (s *Storage) UpdateUser(user *model.User) error {
 				mark_read_on_media_player_completion=$24,
 				media_playback_rate=$25,
 				block_filter_entry_rules=$26,
-				keep_filter_entry_rules=$27
+				keep_filter_entry_rules=$27,
+				always_open_external_links=$28,
+				open_external_links_in_new_tab=$29
 			WHERE
-				id=$28
+				id=$30
 		`
 
 		_, err := s.db.Exec(
@@ -307,6 +317,8 @@ func (s *Storage) UpdateUser(user *model.User) error {
 			user.MediaPlaybackRate,
 			user.BlockFilterEntryRules,
 			user.KeepFilterEntryRules,
+			user.AlwaysOpenExternalLinks,
+			user.OpenExternalLinksInNewTab,
 			user.ID,
 		)
 
@@ -360,7 +372,9 @@ func (s *Storage) UserByID(userID int64) (*model.User, error) {
 			mark_read_on_media_player_completion,
 			media_playback_rate,
 			block_filter_entry_rules,
-			keep_filter_entry_rules
+			keep_filter_entry_rules,
+			always_open_external_links,
+			open_external_links_in_new_tab
 		FROM
 			users
 		WHERE
@@ -401,7 +415,9 @@ func (s *Storage) UserByUsername(username string) (*model.User, error) {
 			mark_read_on_media_player_completion,
 			media_playback_rate,
 			block_filter_entry_rules,
-			keep_filter_entry_rules
+			keep_filter_entry_rules,
+			always_open_external_links,
+			open_external_links_in_new_tab
 		FROM
 			users
 		WHERE
@@ -442,7 +458,9 @@ func (s *Storage) UserByField(field, value string) (*model.User, error) {
 			mark_read_on_media_player_completion,
 			media_playback_rate,
 			block_filter_entry_rules,
-			keep_filter_entry_rules
+			keep_filter_entry_rules,
+			always_open_external_links,
+			open_external_links_in_new_tab
 		FROM
 			users
 		WHERE
@@ -454,7 +472,7 @@ func (s *Storage) UserByField(field, value string) (*model.User, error) {
 // AnotherUserWithFieldExists returns true if a user has the value set for the given field.
 func (s *Storage) AnotherUserWithFieldExists(userID int64, field, value string) bool {
 	var result bool
-	s.db.QueryRow(fmt.Sprintf(`SELECT true FROM users WHERE id <> $1 AND %s=$2`, pq.QuoteIdentifier(field)), userID, value).Scan(&result)
+	s.db.QueryRow(fmt.Sprintf(`SELECT true FROM users WHERE id <> $1 AND %s=$2 LIMIT 1`, pq.QuoteIdentifier(field)), userID, value).Scan(&result)
 	return result
 }
 
@@ -490,7 +508,9 @@ func (s *Storage) UserByAPIKey(token string) (*model.User, error) {
 			u.mark_read_on_media_player_completion,
 			media_playback_rate,
 			u.block_filter_entry_rules,
-			u.keep_filter_entry_rules
+			u.keep_filter_entry_rules,
+			u.always_open_external_links,
+			u.open_external_links_in_new_tab
 		FROM
 			users u
 		LEFT JOIN
@@ -501,7 +521,7 @@ func (s *Storage) UserByAPIKey(token string) (*model.User, error) {
 	return s.fetchUser(query, token)
 }
 
-func (s *Storage) fetchUser(query string, args ...interface{}) (*model.User, error) {
+func (s *Storage) fetchUser(query string, args ...any) (*model.User, error) {
 	var user model.User
 	err := s.db.QueryRow(query, args...).Scan(
 		&user.ID,
@@ -533,6 +553,8 @@ func (s *Storage) fetchUser(query string, args ...interface{}) (*model.User, err
 		&user.MediaPlaybackRate,
 		&user.BlockFilterEntryRules,
 		&user.KeepFilterEntryRules,
+		&user.AlwaysOpenExternalLinks,
+		&user.OpenExternalLinksInNewTab,
 	)
 
 	if err == sql.ErrNoRows {
@@ -646,7 +668,9 @@ func (s *Storage) Users() (model.Users, error) {
 			mark_read_on_media_player_completion,
 			media_playback_rate,
 			block_filter_entry_rules,
-			keep_filter_entry_rules
+			keep_filter_entry_rules,
+			always_open_external_links,
+			open_external_links_in_new_tab
 		FROM
 			users
 		ORDER BY username ASC
@@ -690,6 +714,8 @@ func (s *Storage) Users() (model.Users, error) {
 			&user.MediaPlaybackRate,
 			&user.BlockFilterEntryRules,
 			&user.KeepFilterEntryRules,
+			&user.AlwaysOpenExternalLinks,
+			&user.OpenExternalLinksInNewTab,
 		)
 
 		if err != nil {
@@ -724,7 +750,7 @@ func (s *Storage) CheckPassword(username, password string) error {
 // HasPassword returns true if the given user has a password defined.
 func (s *Storage) HasPassword(userID int64) (bool, error) {
 	var result bool
-	query := `SELECT true FROM users WHERE id=$1 AND password <> ''`
+	query := `SELECT true FROM users WHERE id=$1 AND password <> '' LIMIT 1`
 
 	err := s.db.QueryRow(query, userID).Scan(&result)
 	if err == sql.ErrNoRows {

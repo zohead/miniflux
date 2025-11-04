@@ -6,6 +6,7 @@ package ui // import "miniflux.app/v2/internal/ui"
 import (
 	"net/http"
 
+	"miniflux.app/v2/internal/config"
 	"miniflux.app/v2/internal/storage"
 	"miniflux.app/v2/internal/template"
 	"miniflux.app/v2/internal/worker"
@@ -18,9 +19,7 @@ func Serve(router *mux.Router, store *storage.Storage, pool *worker.Pool) {
 	middleware := newMiddleware(router, store)
 
 	templateEngine := template.NewEngine(router)
-	if err := templateEngine.ParseTemplates(); err != nil {
-		panic(err)
-	}
+	templateEngine.ParseTemplates()
 
 	handler := &handler{router, store, templateEngine, pool}
 
@@ -52,7 +51,7 @@ func Serve(router *mux.Router, store *storage.Storage, pool *worker.Pool) {
 	uiRouter.HandleFunc("/history/entry/{entryID}", handler.showReadEntryPage).Name("readEntry").Methods(http.MethodGet)
 	uiRouter.HandleFunc("/history/flush", handler.flushHistory).Name("flushHistory").Methods(http.MethodPost)
 
-	// Bookmark pages.
+	// Starred pages.
 	uiRouter.HandleFunc("/starred", handler.showStarredPage).Name("starred").Methods(http.MethodGet)
 	uiRouter.HandleFunc("/starred/entry/{entryID}", handler.showStarredEntryPage).Name("starredEntry").Methods(http.MethodGet)
 
@@ -105,7 +104,7 @@ func Serve(router *mux.Router, store *storage.Storage, pool *worker.Pool) {
 	uiRouter.HandleFunc("/entry/enclosure/{enclosureID}/save-progression", handler.saveEnclosureProgression).Name("saveEnclosureProgression").Methods(http.MethodPost)
 	uiRouter.HandleFunc("/entry/download/{entryID}", handler.fetchContent).Name("fetchContent").Methods(http.MethodPost)
 	uiRouter.HandleFunc("/proxy/{encodedDigest}/{encodedURL}", handler.mediaProxy).Name("proxy").Methods(http.MethodGet)
-	uiRouter.HandleFunc("/entry/bookmark/{entryID}", handler.toggleBookmark).Name("toggleBookmark").Methods(http.MethodPost)
+	uiRouter.HandleFunc("/entry/star/{entryID}", handler.toggleStarred).Name("toggleStarred").Methods(http.MethodPost)
 
 	// Share pages.
 	uiRouter.HandleFunc("/entry/share/{entryID}", handler.createSharedEntry).Name("shareEntry").Methods(http.MethodPost)
@@ -126,8 +125,6 @@ func Serve(router *mux.Router, store *storage.Storage, pool *worker.Pool) {
 	uiRouter.HandleFunc("/settings", handler.updateSettings).Name("updateSettings").Methods(http.MethodPost)
 	uiRouter.HandleFunc("/integrations", handler.showIntegrationPage).Name("integrations").Methods(http.MethodGet)
 	uiRouter.HandleFunc("/integration", handler.updateIntegration).Name("updateIntegration").Methods(http.MethodPost)
-	uiRouter.HandleFunc("/integration/pocket/authorize", handler.pocketAuthorize).Name("pocketAuthorize").Methods(http.MethodGet)
-	uiRouter.HandleFunc("/integration/pocket/callback", handler.pocketCallback).Name("pocketCallback").Methods(http.MethodGet)
 	uiRouter.HandleFunc("/about", handler.showAboutPage).Name("about").Methods(http.MethodGet)
 
 	// Session pages.
@@ -136,7 +133,7 @@ func Serve(router *mux.Router, store *storage.Storage, pool *worker.Pool) {
 
 	// API Keys pages.
 	uiRouter.HandleFunc("/keys", handler.showAPIKeysPage).Name("apiKeys").Methods(http.MethodGet)
-	uiRouter.HandleFunc("/keys/{keyID}/remove", handler.removeAPIKey).Name("removeAPIKey").Methods(http.MethodPost)
+	uiRouter.HandleFunc("/keys/{keyID}/delete", handler.deleteAPIKey).Name("deleteAPIKey").Methods(http.MethodPost)
 	uiRouter.HandleFunc("/keys/create", handler.showCreateAPIKeyPage).Name("createAPIKey").Methods(http.MethodGet)
 	uiRouter.HandleFunc("/keys/save", handler.saveAPIKey).Name("saveAPIKey").Methods(http.MethodPost)
 
@@ -147,9 +144,11 @@ func Serve(router *mux.Router, store *storage.Storage, pool *worker.Pool) {
 	uiRouter.HandleFunc("/fetch", handler.fetchOPML).Name("fetchOPML").Methods(http.MethodPost)
 
 	// OAuth2 flow.
-	uiRouter.HandleFunc("/oauth2/{provider}/unlink", handler.oauth2Unlink).Name("oauth2Unlink").Methods(http.MethodGet)
-	uiRouter.HandleFunc("/oauth2/{provider}/redirect", handler.oauth2Redirect).Name("oauth2Redirect").Methods(http.MethodGet)
-	uiRouter.HandleFunc("/oauth2/{provider}/callback", handler.oauth2Callback).Name("oauth2Callback").Methods(http.MethodGet)
+	if config.Opts.OAuth2Provider() != "" {
+		uiRouter.HandleFunc("/oauth2/{provider}/unlink", handler.oauth2Unlink).Name("oauth2Unlink").Methods(http.MethodGet)
+		uiRouter.HandleFunc("/oauth2/{provider}/redirect", handler.oauth2Redirect).Name("oauth2Redirect").Methods(http.MethodGet)
+		uiRouter.HandleFunc("/oauth2/{provider}/callback", handler.oauth2Callback).Name("oauth2Callback").Methods(http.MethodGet)
+	}
 
 	// Offline page
 	uiRouter.HandleFunc("/offline", handler.showOfflinePage).Name("offline").Methods(http.MethodGet)
@@ -160,14 +159,16 @@ func Serve(router *mux.Router, store *storage.Storage, pool *worker.Pool) {
 	uiRouter.Handle("/", middleware.handleAuthProxy(http.HandlerFunc(handler.showLoginPage))).Name("login").Methods(http.MethodGet)
 
 	// WebAuthn flow
-	uiRouter.HandleFunc("/webauthn/register/begin", handler.beginRegistration).Name("webauthnRegisterBegin").Methods(http.MethodGet)
-	uiRouter.HandleFunc("/webauthn/register/finish", handler.finishRegistration).Name("webauthnRegisterFinish").Methods(http.MethodPost)
-	uiRouter.HandleFunc("/webauthn/login/begin", handler.beginLogin).Name("webauthnLoginBegin").Methods(http.MethodGet)
-	uiRouter.HandleFunc("/webauthn/login/finish", handler.finishLogin).Name("webauthnLoginFinish").Methods(http.MethodPost)
-	uiRouter.HandleFunc("/webauthn/deleteall", handler.deleteAllCredentials).Name("webauthnDeleteAll").Methods(http.MethodPost)
-	uiRouter.HandleFunc("/webauthn/{credentialHandle}/delete", handler.deleteCredential).Name("webauthnDelete").Methods(http.MethodPost)
-	uiRouter.HandleFunc("/webauthn/{credentialHandle}/rename", handler.renameCredential).Name("webauthnRename").Methods(http.MethodGet)
-	uiRouter.HandleFunc("/webauthn/{credentialHandle}/save", handler.saveCredential).Name("webauthnSave").Methods(http.MethodPost)
+	if config.Opts.WebAuthn() {
+		uiRouter.HandleFunc("/webauthn/register/begin", handler.beginRegistration).Name("webauthnRegisterBegin").Methods(http.MethodGet)
+		uiRouter.HandleFunc("/webauthn/register/finish", handler.finishRegistration).Name("webauthnRegisterFinish").Methods(http.MethodPost)
+		uiRouter.HandleFunc("/webauthn/login/begin", handler.beginLogin).Name("webauthnLoginBegin").Methods(http.MethodGet)
+		uiRouter.HandleFunc("/webauthn/login/finish", handler.finishLogin).Name("webauthnLoginFinish").Methods(http.MethodPost)
+		uiRouter.HandleFunc("/webauthn/deleteall", handler.deleteAllCredentials).Name("webauthnDeleteAll").Methods(http.MethodPost)
+		uiRouter.HandleFunc("/webauthn/{credentialHandle}/delete", handler.deleteCredential).Name("webauthnDelete").Methods(http.MethodPost)
+		uiRouter.HandleFunc("/webauthn/{credentialHandle}/rename", handler.renameCredential).Name("webauthnRename").Methods(http.MethodGet)
+		uiRouter.HandleFunc("/webauthn/{credentialHandle}/save", handler.saveCredential).Name("webauthnSave").Methods(http.MethodPost)
+	}
 
 	router.HandleFunc("/robots.txt", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")

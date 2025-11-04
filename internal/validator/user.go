@@ -11,6 +11,7 @@ import (
 	"miniflux.app/v2/internal/locale"
 	"miniflux.app/v2/internal/model"
 	"miniflux.app/v2/internal/storage"
+	"miniflux.app/v2/internal/timezone"
 )
 
 // ValidateUserCreationWithPassword validates user creation with a password.
@@ -63,7 +64,7 @@ func ValidateUserModification(store *storage.Storage, userID int64, changes *mod
 	}
 
 	if changes.Timezone != nil {
-		if err := validateTimezone(store, *changes.Timezone); err != nil {
+		if err := validateTimezone(*changes.Timezone); err != nil {
 			return err
 		}
 	}
@@ -74,8 +75,20 @@ func ValidateUserModification(store *storage.Storage, userID int64, changes *mod
 		}
 	}
 
+	if changes.EntryOrder != nil {
+		if err := ValidateEntryOrder(*changes.EntryOrder); err != nil {
+			return locale.NewLocalizedError("error.invalid_entry_order")
+		}
+	}
+
 	if changes.EntriesPerPage != nil {
 		if err := validateEntriesPerPage(*changes.EntriesPerPage); err != nil {
+			return err
+		}
+	}
+
+	if changes.CategoriesSortingOrder != nil {
+		if err := validateCategoriesSortingOrder(*changes.CategoriesSortingOrder); err != nil {
 			return err
 		}
 	}
@@ -188,13 +201,8 @@ func validateLanguage(language string) *locale.LocalizedError {
 	return nil
 }
 
-func validateTimezone(store *storage.Storage, timezone string) *locale.LocalizedError {
-	timezones, err := store.Timezones()
-	if err != nil {
-		return locale.NewLocalizedError(err.Error())
-	}
-
-	if _, found := timezones[timezone]; !found {
+func validateTimezone(timezoneValue string) *locale.LocalizedError {
+	if _, found := timezone.AvailableTimezones()[timezoneValue]; !found {
 		return locale.NewLocalizedError("error.invalid_timezone")
 	}
 	return nil
@@ -210,6 +218,13 @@ func validateEntryDirection(direction string) *locale.LocalizedError {
 func validateEntriesPerPage(entriesPerPage int) *locale.LocalizedError {
 	if entriesPerPage < 1 {
 		return locale.NewLocalizedError("error.entries_per_page_invalid")
+	}
+	return nil
+}
+
+func validateCategoriesSortingOrder(order string) *locale.LocalizedError {
+	if order != "alphabetical" && order != "unread_count" {
+		return locale.NewLocalizedError("error.invalid_categories_sorting_order")
 	}
 	return nil
 }

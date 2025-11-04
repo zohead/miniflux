@@ -6,6 +6,7 @@ package request // import "miniflux.app/v2/internal/http/request"
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"miniflux.app/v2/internal/model"
 )
@@ -16,6 +17,7 @@ type ContextKey int
 // List of context keys.
 const (
 	UserIDContextKey ContextKey = iota
+	UserNameContextKey
 	UserTimezoneContextKey
 	IsAdminUserContextKey
 	IsAuthenticatedContextKey
@@ -28,10 +30,9 @@ const (
 	OAuth2CodeVerifierContextKey
 	FlashMessageContextKey
 	FlashErrorMessageContextKey
-	PocketRequestTokenContextKey
 	LastForceRefreshContextKey
 	ClientIPContextKey
-	GoogleReaderToken
+	GoogleReaderTokenKey
 	WebAuthnDataContextKey
 )
 
@@ -44,9 +45,9 @@ func WebAuthnSessionData(r *http.Request) *model.WebAuthnSession {
 	return nil
 }
 
-// GoolgeReaderToken returns the google reader token if it exists.
-func GoolgeReaderToken(r *http.Request) string {
-	return getContextStringValue(r, GoogleReaderToken)
+// GoogleReaderToken returns the google reader token if it exists.
+func GoogleReaderToken(r *http.Request) string {
+	return getContextStringValue(r, GoogleReaderTokenKey)
 }
 
 // IsAdminUser checks if the logged user is administrator.
@@ -62,6 +63,15 @@ func IsAuthenticated(r *http.Request) bool {
 // UserID returns the UserID of the logged user.
 func UserID(r *http.Request) int64 {
 	return getContextInt64Value(r, UserIDContextKey)
+}
+
+// UserName returns the username of the logged user.
+func UserName(r *http.Request) string {
+	value := getContextStringValue(r, UserNameContextKey)
+	if value == "" {
+		value = "unknown"
+	}
+	return value
 }
 
 // UserTimezone returns the timezone used by the logged user.
@@ -125,19 +135,14 @@ func FlashErrorMessage(r *http.Request) string {
 	return getContextStringValue(r, FlashErrorMessageContextKey)
 }
 
-// PocketRequestToken returns the Pocket Request Token if any.
-func PocketRequestToken(r *http.Request) string {
-	return getContextStringValue(r, PocketRequestTokenContextKey)
-}
-
 // LastForceRefresh returns the last force refresh timestamp.
-func LastForceRefresh(r *http.Request) int64 {
+func LastForceRefresh(r *http.Request) time.Time {
 	jsonStringValue := getContextStringValue(r, LastForceRefreshContextKey)
 	timestamp, err := strconv.ParseInt(jsonStringValue, 10, 64)
 	if err != nil {
-		return 0
+		return time.Time{}
 	}
-	return timestamp
+	return time.Unix(timestamp, 0)
 }
 
 // ClientIP returns the client IP address stored in the context.

@@ -4,22 +4,22 @@
 package validator // import "miniflux.app/v2/internal/validator"
 
 import (
-	"fmt"
+	"errors"
 	"net/url"
 	"regexp"
 	"strings"
 )
 
-var domainRegex = regexp.MustCompile(`^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$`)
+var domainRegex = regexp.MustCompile(`^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$`)
 
 // ValidateRange makes sure the offset/limit values are valid.
 func ValidateRange(offset, limit int) error {
 	if offset < 0 {
-		return fmt.Errorf(`offset value should be >= 0`)
+		return errors.New(`offset value should be >= 0`)
 	}
 
 	if limit < 0 {
-		return fmt.Errorf(`limit value should be >= 0`)
+		return errors.New(`limit value should be >= 0`)
 	}
 
 	return nil
@@ -32,7 +32,7 @@ func ValidateDirection(direction string) error {
 		return nil
 	}
 
-	return fmt.Errorf(`invalid direction, valid direction values are: "asc" or "desc"`)
+	return errors.New(`invalid direction, valid direction values are: "asc" or "desc"`)
 }
 
 // IsValidRegex verifies if the regex can be compiled.

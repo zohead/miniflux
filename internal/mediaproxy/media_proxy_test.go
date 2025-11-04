@@ -14,12 +14,12 @@ import (
 
 func TestProxyFilterWithHttpDefault(t *testing.T) {
 	os.Clearenv()
-	os.Setenv("PROXY_OPTION", "http-only")
-	os.Setenv("PROXY_MEDIA_TYPES", "image")
-	os.Setenv("PROXY_PRIVATE_KEY", "test")
+	os.Setenv("MEDIA_PROXY_MODE", "http-only")
+	os.Setenv("MEDIA_PROXY_RESOURCE_TYPES", "image")
+	os.Setenv("MEDIA_PROXY_PRIVATE_KEY", "test")
 
 	var err error
-	parser := config.NewParser()
+	parser := config.NewConfigParser()
 	config.Opts, err = parser.ParseEnvironmentVariables()
 	if err != nil {
 		t.Fatalf(`Parsing failure: %v`, err)
@@ -39,11 +39,11 @@ func TestProxyFilterWithHttpDefault(t *testing.T) {
 
 func TestProxyFilterWithHttpsDefault(t *testing.T) {
 	os.Clearenv()
-	os.Setenv("PROXY_OPTION", "http-only")
-	os.Setenv("PROXY_MEDIA_TYPES", "image")
+	os.Setenv("MEDIA_PROXY_MODE", "http-only")
+	os.Setenv("MEDIA_PROXY_RESOURCE_TYPES", "image")
 
 	var err error
-	parser := config.NewParser()
+	parser := config.NewConfigParser()
 	config.Opts, err = parser.ParseEnvironmentVariables()
 	if err != nil {
 		t.Fatalf(`Parsing failure: %v`, err)
@@ -63,10 +63,10 @@ func TestProxyFilterWithHttpsDefault(t *testing.T) {
 
 func TestProxyFilterWithHttpNever(t *testing.T) {
 	os.Clearenv()
-	os.Setenv("PROXY_OPTION", "none")
+	os.Setenv("MEDIA_PROXY_MODE", "none")
 
 	var err error
-	parser := config.NewParser()
+	parser := config.NewConfigParser()
 	config.Opts, err = parser.ParseEnvironmentVariables()
 	if err != nil {
 		t.Fatalf(`Parsing failure: %v`, err)
@@ -86,10 +86,10 @@ func TestProxyFilterWithHttpNever(t *testing.T) {
 
 func TestProxyFilterWithHttpsNever(t *testing.T) {
 	os.Clearenv()
-	os.Setenv("PROXY_OPTION", "none")
+	os.Setenv("MEDIA_PROXY_MODE", "none")
 
 	var err error
-	parser := config.NewParser()
+	parser := config.NewConfigParser()
 	config.Opts, err = parser.ParseEnvironmentVariables()
 	if err != nil {
 		t.Fatalf(`Parsing failure: %v`, err)
@@ -109,12 +109,12 @@ func TestProxyFilterWithHttpsNever(t *testing.T) {
 
 func TestProxyFilterWithHttpAlways(t *testing.T) {
 	os.Clearenv()
-	os.Setenv("PROXY_OPTION", "all")
-	os.Setenv("PROXY_MEDIA_TYPES", "image")
-	os.Setenv("PROXY_PRIVATE_KEY", "test")
+	os.Setenv("MEDIA_PROXY_MODE", "all")
+	os.Setenv("MEDIA_PROXY_RESOURCE_TYPES", "image")
+	os.Setenv("MEDIA_PROXY_PRIVATE_KEY", "test")
 
 	var err error
-	parser := config.NewParser()
+	parser := config.NewConfigParser()
 	config.Opts, err = parser.ParseEnvironmentVariables()
 	if err != nil {
 		t.Fatalf(`Parsing failure: %v`, err)
@@ -134,12 +134,12 @@ func TestProxyFilterWithHttpAlways(t *testing.T) {
 
 func TestProxyFilterWithHttpsAlways(t *testing.T) {
 	os.Clearenv()
-	os.Setenv("PROXY_OPTION", "all")
-	os.Setenv("PROXY_MEDIA_TYPES", "image")
-	os.Setenv("PROXY_PRIVATE_KEY", "test")
+	os.Setenv("MEDIA_PROXY_MODE", "all")
+	os.Setenv("MEDIA_PROXY_RESOURCE_TYPES", "image")
+	os.Setenv("MEDIA_PROXY_PRIVATE_KEY", "test")
 
 	var err error
-	parser := config.NewParser()
+	parser := config.NewConfigParser()
 	config.Opts, err = parser.ParseEnvironmentVariables()
 	if err != nil {
 		t.Fatalf(`Parsing failure: %v`, err)
@@ -159,12 +159,12 @@ func TestProxyFilterWithHttpsAlways(t *testing.T) {
 
 func TestAbsoluteProxyFilterWithHttpsAlways(t *testing.T) {
 	os.Clearenv()
-	os.Setenv("PROXY_OPTION", "all")
-	os.Setenv("PROXY_MEDIA_TYPES", "image")
-	os.Setenv("PROXY_PRIVATE_KEY", "test")
+	os.Setenv("MEDIA_PROXY_MODE", "all")
+	os.Setenv("MEDIA_PROXY_RESOURCE_TYPES", "image")
+	os.Setenv("MEDIA_PROXY_PRIVATE_KEY", "test")
 
 	var err error
-	parser := config.NewParser()
+	parser := config.NewConfigParser()
 	config.Opts, err = parser.ParseEnvironmentVariables()
 	if err != nil {
 		t.Fatalf(`Parsing failure: %v`, err)
@@ -188,7 +188,7 @@ func TestAbsoluteProxyFilterWithCustomPortAndSubfolderInBaseURL(t *testing.T) {
 	os.Setenv("MEDIA_PROXY_PRIVATE_KEY", "test")
 
 	var err error
-	parser := config.NewParser()
+	parser := config.NewConfigParser()
 	config.Opts, err = parser.ParseEnvironmentVariables()
 	if err != nil {
 		t.Fatalf(`Parsing failure: %v`, err)
@@ -221,12 +221,12 @@ func TestAbsoluteProxyFilterWithCustomPortAndSubfolderInBaseURL(t *testing.T) {
 
 func TestAbsoluteProxyFilterWithHttpsAlwaysAndAudioTag(t *testing.T) {
 	os.Clearenv()
-	os.Setenv("PROXY_OPTION", "all")
-	os.Setenv("PROXY_MEDIA_TYPES", "audio")
-	os.Setenv("PROXY_PRIVATE_KEY", "test")
+	os.Setenv("MEDIA_PROXY_MODE", "all")
+	os.Setenv("MEDIA_PROXY_RESOURCE_TYPES", "audio")
+	os.Setenv("MEDIA_PROXY_PRIVATE_KEY", "test")
 
 	var err error
-	parser := config.NewParser()
+	parser := config.NewConfigParser()
 	config.Opts, err = parser.ParseEnvironmentVariables()
 	if err != nil {
 		t.Fatalf(`Parsing failure: %v`, err)
@@ -246,12 +246,12 @@ func TestAbsoluteProxyFilterWithHttpsAlwaysAndAudioTag(t *testing.T) {
 
 func TestProxyFilterWithHttpsAlwaysAndCustomProxyServer(t *testing.T) {
 	os.Clearenv()
-	os.Setenv("PROXY_OPTION", "all")
-	os.Setenv("PROXY_MEDIA_TYPES", "image")
-	os.Setenv("PROXY_URL", "https://proxy-example/proxy")
+	os.Setenv("MEDIA_PROXY_MODE", "all")
+	os.Setenv("MEDIA_PROXY_RESOURCE_TYPES", "image")
+	os.Setenv("MEDIA_PROXY_CUSTOM_URL", "https://proxy-example/proxy")
 
 	var err error
-	parser := config.NewParser()
+	parser := config.NewConfigParser()
 	config.Opts, err = parser.ParseEnvironmentVariables()
 	if err != nil {
 		t.Fatalf(`Parsing failure: %v`, err)
@@ -271,26 +271,15 @@ func TestProxyFilterWithHttpsAlwaysAndCustomProxyServer(t *testing.T) {
 
 func TestProxyFilterWithHttpsAlwaysAndIncorrectCustomProxyServer(t *testing.T) {
 	os.Clearenv()
-	os.Setenv("PROXY_OPTION", "all")
-	os.Setenv("PROXY_MEDIA_TYPES", "image")
-	os.Setenv("PROXY_URL", "http://:8080example.com")
+	os.Setenv("MEDIA_PROXY_MODE", "all")
+	os.Setenv("MEDIA_PROXY_RESOURCE_TYPES", "image")
+	os.Setenv("MEDIA_PROXY_CUSTOM_URL", "http://:8080example.com")
 
 	var err error
-	parser := config.NewParser()
+	parser := config.NewConfigParser()
 	config.Opts, err = parser.ParseEnvironmentVariables()
-	if err != nil {
-		t.Fatalf(`Parsing failure: %v`, err)
-	}
-
-	r := mux.NewRouter()
-	r.HandleFunc("/proxy/{encodedDigest}/{encodedURL}", func(w http.ResponseWriter, r *http.Request) {}).Name("proxy")
-
-	input := `<p><img src="https://website/folder/image.png" alt="Test"/></p>`
-	output := RewriteDocumentWithRelativeProxyURL(r, input)
-	expected := `<p><img src="https://website/folder/image.png" alt="Test"/></p>`
-
-	if expected != output {
-		t.Errorf(`Not expected output: got %q instead of %q`, output, expected)
+	if err == nil {
+		t.Fatalf(`Incorrect proxy URL silently accepted (MEDIA_PROXY_CUSTOM_URL=%q): %q`, os.Getenv("MEDIA_PROXY_CUSTOM_URL"), config.Opts.MediaCustomProxyURL())
 	}
 }
 
@@ -301,7 +290,7 @@ func TestAbsoluteProxyFilterWithHttpsAlwaysAndCustomProxyServer(t *testing.T) {
 	os.Setenv("MEDIA_PROXY_CUSTOM_URL", "https://proxy-example/proxy")
 
 	var err error
-	parser := config.NewParser()
+	parser := config.NewConfigParser()
 	config.Opts, err = parser.ParseEnvironmentVariables()
 	if err != nil {
 		t.Fatalf(`Parsing failure: %v`, err)
@@ -321,60 +310,22 @@ func TestAbsoluteProxyFilterWithHttpsAlwaysAndCustomProxyServer(t *testing.T) {
 
 func TestProxyFilterWithHttpInvalid(t *testing.T) {
 	os.Clearenv()
-	os.Setenv("PROXY_OPTION", "invalid")
-	os.Setenv("PROXY_PRIVATE_KEY", "test")
+	os.Setenv("MEDIA_PROXY_MODE", "invalid")
+	os.Setenv("MEDIA_PROXY_PRIVATE_KEY", "test")
 
-	var err error
-	parser := config.NewParser()
-	config.Opts, err = parser.ParseEnvironmentVariables()
-	if err != nil {
-		t.Fatalf(`Parsing failure: %v`, err)
-	}
-
-	r := mux.NewRouter()
-	r.HandleFunc("/proxy/{encodedDigest}/{encodedURL}", func(w http.ResponseWriter, r *http.Request) {}).Name("proxy")
-
-	input := `<p><img src="http://website/folder/image.png" alt="Test"/></p>`
-	output := RewriteDocumentWithRelativeProxyURL(r, input)
-	expected := `<p><img src="/proxy/okK5PsdNY8F082UMQEAbLPeUFfbe2WnNfInNmR9T4WA=/aHR0cDovL3dlYnNpdGUvZm9sZGVyL2ltYWdlLnBuZw==" alt="Test"/></p>`
-
-	if expected != output {
-		t.Errorf(`Not expected output: got %q instead of %q`, output, expected)
-	}
-}
-
-func TestProxyFilterWithHttpsInvalid(t *testing.T) {
-	os.Clearenv()
-	os.Setenv("PROXY_OPTION", "invalid")
-	os.Setenv("PROXY_PRIVATE_KEY", "test")
-
-	var err error
-	parser := config.NewParser()
-	config.Opts, err = parser.ParseEnvironmentVariables()
-	if err != nil {
-		t.Fatalf(`Parsing failure: %v`, err)
-	}
-
-	r := mux.NewRouter()
-	r.HandleFunc("/proxy/{encodedDigest}/{encodedURL}", func(w http.ResponseWriter, r *http.Request) {}).Name("proxy")
-
-	input := `<p><img src="https://website/folder/image.png" alt="Test"/></p>`
-	output := RewriteDocumentWithRelativeProxyURL(r, input)
-	expected := `<p><img src="https://website/folder/image.png" alt="Test"/></p>`
-
-	if expected != output {
-		t.Errorf(`Not expected output: got %q instead of %q`, output, expected)
+	if _, err := config.NewConfigParser().ParseEnvironmentVariables(); err == nil {
+		t.Fatalf(`Parsing should have failed (MEDIA_PROXY_MODE=%q): %q`, os.Getenv("MEDIA_PROXY_MODE"), config.Opts.MediaProxyMode())
 	}
 }
 
 func TestProxyFilterWithSrcset(t *testing.T) {
 	os.Clearenv()
-	os.Setenv("PROXY_OPTION", "all")
-	os.Setenv("PROXY_MEDIA_TYPES", "image")
-	os.Setenv("PROXY_PRIVATE_KEY", "test")
+	os.Setenv("MEDIA_PROXY_MODE", "all")
+	os.Setenv("MEDIA_PROXY_RESOURCE_TYPES", "image")
+	os.Setenv("MEDIA_PROXY_PRIVATE_KEY", "test")
 
 	var err error
-	parser := config.NewParser()
+	parser := config.NewConfigParser()
 	config.Opts, err = parser.ParseEnvironmentVariables()
 	if err != nil {
 		t.Fatalf(`Parsing failure: %v`, err)
@@ -394,12 +345,12 @@ func TestProxyFilterWithSrcset(t *testing.T) {
 
 func TestProxyFilterWithEmptySrcset(t *testing.T) {
 	os.Clearenv()
-	os.Setenv("PROXY_OPTION", "all")
-	os.Setenv("PROXY_MEDIA_TYPES", "image")
-	os.Setenv("PROXY_PRIVATE_KEY", "test")
+	os.Setenv("MEDIA_PROXY_MODE", "all")
+	os.Setenv("MEDIA_PROXY_RESOURCE_TYPES", "image")
+	os.Setenv("MEDIA_PROXY_PRIVATE_KEY", "test")
 
 	var err error
-	parser := config.NewParser()
+	parser := config.NewConfigParser()
 	config.Opts, err = parser.ParseEnvironmentVariables()
 	if err != nil {
 		t.Fatalf(`Parsing failure: %v`, err)
@@ -419,12 +370,12 @@ func TestProxyFilterWithEmptySrcset(t *testing.T) {
 
 func TestProxyFilterWithPictureSource(t *testing.T) {
 	os.Clearenv()
-	os.Setenv("PROXY_OPTION", "all")
-	os.Setenv("PROXY_MEDIA_TYPES", "image")
-	os.Setenv("PROXY_PRIVATE_KEY", "test")
+	os.Setenv("MEDIA_PROXY_MODE", "all")
+	os.Setenv("MEDIA_PROXY_RESOURCE_TYPES", "image")
+	os.Setenv("MEDIA_PROXY_PRIVATE_KEY", "test")
 
 	var err error
-	parser := config.NewParser()
+	parser := config.NewConfigParser()
 	config.Opts, err = parser.ParseEnvironmentVariables()
 	if err != nil {
 		t.Fatalf(`Parsing failure: %v`, err)
@@ -444,12 +395,12 @@ func TestProxyFilterWithPictureSource(t *testing.T) {
 
 func TestProxyFilterOnlyNonHTTPWithPictureSource(t *testing.T) {
 	os.Clearenv()
-	os.Setenv("PROXY_OPTION", "https")
-	os.Setenv("PROXY_MEDIA_TYPES", "image")
-	os.Setenv("PROXY_PRIVATE_KEY", "test")
+	os.Setenv("MEDIA_PROXY_MODE", "http-only")
+	os.Setenv("MEDIA_PROXY_RESOURCE_TYPES", "image")
+	os.Setenv("MEDIA_PROXY_PRIVATE_KEY", "test")
 
 	var err error
-	parser := config.NewParser()
+	parser := config.NewConfigParser()
 	config.Opts, err = parser.ParseEnvironmentVariables()
 	if err != nil {
 		t.Fatalf(`Parsing failure: %v`, err)
@@ -469,11 +420,11 @@ func TestProxyFilterOnlyNonHTTPWithPictureSource(t *testing.T) {
 
 func TestProxyWithImageDataURL(t *testing.T) {
 	os.Clearenv()
-	os.Setenv("PROXY_OPTION", "all")
-	os.Setenv("PROXY_MEDIA_TYPES", "image")
+	os.Setenv("MEDIA_PROXY_MODE", "all")
+	os.Setenv("MEDIA_PROXY_RESOURCE_TYPES", "image")
 
 	var err error
-	parser := config.NewParser()
+	parser := config.NewConfigParser()
 	config.Opts, err = parser.ParseEnvironmentVariables()
 	if err != nil {
 		t.Fatalf(`Parsing failure: %v`, err)
@@ -493,11 +444,11 @@ func TestProxyWithImageDataURL(t *testing.T) {
 
 func TestProxyWithImageSourceDataURL(t *testing.T) {
 	os.Clearenv()
-	os.Setenv("PROXY_OPTION", "all")
-	os.Setenv("PROXY_MEDIA_TYPES", "image")
+	os.Setenv("MEDIA_PROXY_MODE", "all")
+	os.Setenv("MEDIA_PROXY_RESOURCE_TYPES", "image")
 
 	var err error
-	parser := config.NewParser()
+	parser := config.NewConfigParser()
 	config.Opts, err = parser.ParseEnvironmentVariables()
 	if err != nil {
 		t.Fatalf(`Parsing failure: %v`, err)
@@ -517,12 +468,12 @@ func TestProxyWithImageSourceDataURL(t *testing.T) {
 
 func TestProxyFilterWithVideo(t *testing.T) {
 	os.Clearenv()
-	os.Setenv("PROXY_OPTION", "all")
-	os.Setenv("PROXY_MEDIA_TYPES", "video")
-	os.Setenv("PROXY_PRIVATE_KEY", "test")
+	os.Setenv("MEDIA_PROXY_MODE", "all")
+	os.Setenv("MEDIA_PROXY_RESOURCE_TYPES", "video")
+	os.Setenv("MEDIA_PROXY_PRIVATE_KEY", "test")
 
 	var err error
-	parser := config.NewParser()
+	parser := config.NewConfigParser()
 	config.Opts, err = parser.ParseEnvironmentVariables()
 	if err != nil {
 		t.Fatalf(`Parsing failure: %v`, err)
@@ -542,12 +493,12 @@ func TestProxyFilterWithVideo(t *testing.T) {
 
 func TestProxyFilterVideoPoster(t *testing.T) {
 	os.Clearenv()
-	os.Setenv("PROXY_OPTION", "all")
-	os.Setenv("PROXY_MEDIA_TYPES", "image")
-	os.Setenv("PROXY_PRIVATE_KEY", "test")
+	os.Setenv("MEDIA_PROXY_MODE", "all")
+	os.Setenv("MEDIA_PROXY_RESOURCE_TYPES", "image")
+	os.Setenv("MEDIA_PROXY_PRIVATE_KEY", "test")
 
 	var err error
-	parser := config.NewParser()
+	parser := config.NewConfigParser()
 	config.Opts, err = parser.ParseEnvironmentVariables()
 	if err != nil {
 		t.Fatalf(`Parsing failure: %v`, err)
@@ -567,12 +518,12 @@ func TestProxyFilterVideoPoster(t *testing.T) {
 
 func TestProxyFilterVideoPosterOnce(t *testing.T) {
 	os.Clearenv()
-	os.Setenv("PROXY_OPTION", "all")
-	os.Setenv("PROXY_MEDIA_TYPES", "image,video")
-	os.Setenv("PROXY_PRIVATE_KEY", "test")
+	os.Setenv("MEDIA_PROXY_MODE", "all")
+	os.Setenv("MEDIA_PROXY_RESOURCE_TYPES", "image,video")
+	os.Setenv("MEDIA_PROXY_PRIVATE_KEY", "test")
 
 	var err error
-	parser := config.NewParser()
+	parser := config.NewConfigParser()
 	config.Opts, err = parser.ParseEnvironmentVariables()
 	if err != nil {
 		t.Fatalf(`Parsing failure: %v`, err)
@@ -587,5 +538,147 @@ func TestProxyFilterVideoPosterOnce(t *testing.T) {
 
 	if expected != output {
 		t.Errorf(`Not expected output: got %s`, output)
+	}
+}
+
+func TestShouldProxifyURLWithMimeType(t *testing.T) {
+	testCases := []struct {
+		name                    string
+		mediaURL                string
+		mediaMimeType           string
+		mediaProxyOption        string
+		mediaProxyResourceTypes []string
+		expected                bool
+	}{
+		{
+			name:                    "Empty URL should not be proxified",
+			mediaURL:                "",
+			mediaMimeType:           "image/jpeg",
+			mediaProxyOption:        "all",
+			mediaProxyResourceTypes: []string{"image"},
+			expected:                false,
+		},
+		{
+			name:                    "Data URL should not be proxified",
+			mediaURL:                "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
+			mediaMimeType:           "image/png",
+			mediaProxyOption:        "all",
+			mediaProxyResourceTypes: []string{"image"},
+			expected:                false,
+		},
+		{
+			name:                    "HTTP URL with all mode and matching MIME type should be proxified",
+			mediaURL:                "http://example.com/image.jpg",
+			mediaMimeType:           "image/jpeg",
+			mediaProxyOption:        "all",
+			mediaProxyResourceTypes: []string{"image"},
+			expected:                true,
+		},
+		{
+			name:                    "HTTPS URL with all mode and matching MIME type should be proxified",
+			mediaURL:                "https://example.com/image.jpg",
+			mediaMimeType:           "image/jpeg",
+			mediaProxyOption:        "all",
+			mediaProxyResourceTypes: []string{"image"},
+			expected:                true,
+		},
+		{
+			name:                    "HTTP URL with http-only mode and matching MIME type should be proxified",
+			mediaURL:                "http://example.com/image.jpg",
+			mediaMimeType:           "image/jpeg",
+			mediaProxyOption:        "http-only",
+			mediaProxyResourceTypes: []string{"image"},
+			expected:                true,
+		},
+		{
+			name:                    "HTTPS URL with http-only mode should not be proxified",
+			mediaURL:                "https://example.com/image.jpg",
+			mediaMimeType:           "image/jpeg",
+			mediaProxyOption:        "http-only",
+			mediaProxyResourceTypes: []string{"image"},
+			expected:                false,
+		},
+		{
+			name:                    "URL with none mode should not be proxified",
+			mediaURL:                "http://example.com/image.jpg",
+			mediaMimeType:           "image/jpeg",
+			mediaProxyOption:        "none",
+			mediaProxyResourceTypes: []string{"image"},
+			expected:                false,
+		},
+		{
+			name:                    "URL with matching MIME type should be proxified",
+			mediaURL:                "http://example.com/video.mp4",
+			mediaMimeType:           "video/mp4",
+			mediaProxyOption:        "all",
+			mediaProxyResourceTypes: []string{"video"},
+			expected:                true,
+		},
+		{
+			name:                    "URL with non-matching MIME type should not be proxified",
+			mediaURL:                "http://example.com/video.mp4",
+			mediaMimeType:           "video/mp4",
+			mediaProxyOption:        "all",
+			mediaProxyResourceTypes: []string{"image"},
+			expected:                false,
+		},
+		{
+			name:                    "URL with multiple resource types and matching MIME type should be proxified",
+			mediaURL:                "http://example.com/audio.mp3",
+			mediaMimeType:           "audio/mp3",
+			mediaProxyOption:        "all",
+			mediaProxyResourceTypes: []string{"image", "audio", "video"},
+			expected:                true,
+		},
+		{
+			name:                    "URL with multiple resource types but non-matching MIME type should not be proxified",
+			mediaURL:                "http://example.com/document.pdf",
+			mediaMimeType:           "application/pdf",
+			mediaProxyOption:        "all",
+			mediaProxyResourceTypes: []string{"image", "audio", "video"},
+			expected:                false,
+		},
+		{
+			name:                    "URL with empty resource types should not be proxified",
+			mediaURL:                "http://example.com/image.jpg",
+			mediaMimeType:           "image/jpeg",
+			mediaProxyOption:        "all",
+			mediaProxyResourceTypes: []string{},
+			expected:                false,
+		},
+		{
+			name:                    "URL with partial MIME type match should be proxified",
+			mediaURL:                "http://example.com/image.jpg",
+			mediaMimeType:           "image/jpeg",
+			mediaProxyOption:        "all",
+			mediaProxyResourceTypes: []string{"image"},
+			expected:                true,
+		},
+		{
+			name:                    "URL with audio MIME type and audio resource type should be proxified",
+			mediaURL:                "http://example.com/song.ogg",
+			mediaMimeType:           "audio/ogg",
+			mediaProxyOption:        "all",
+			mediaProxyResourceTypes: []string{"audio"},
+			expected:                true,
+		},
+		{
+			name:                    "URL with video MIME type and video resource type should be proxified",
+			mediaURL:                "http://example.com/movie.webm",
+			mediaMimeType:           "video/webm",
+			mediaProxyOption:        "all",
+			mediaProxyResourceTypes: []string{"video"},
+			expected:                true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := ShouldProxifyURLWithMimeType(tc.mediaURL, tc.mediaMimeType, tc.mediaProxyOption, tc.mediaProxyResourceTypes)
+			if result != tc.expected {
+				t.Errorf("Expected %v, got %v for URL: %s, MIME type: %s, proxy option: %s, resource types: %v",
+					tc.expected, result, tc.mediaURL, tc.mediaMimeType, tc.mediaProxyOption, tc.mediaProxyResourceTypes)
+			}
+		})
 	}
 }

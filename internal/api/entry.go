@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"miniflux.app/v2/internal/config"
 	"miniflux.app/v2/internal/http/request"
 	"miniflux.app/v2/internal/http/response/json"
 	"miniflux.app/v2/internal/integration"
@@ -34,8 +35,7 @@ func (h *handler) getEntryFromBuilder(w http.ResponseWriter, r *http.Request, b 
 	}
 
 	entry.Content = mediaproxy.RewriteDocumentWithAbsoluteProxyURL(h.router, entry.Content)
-
-	entry.Enclosures.ProxifyEnclosureURL(h.router)
+	entry.Enclosures.ProxifyEnclosureURL(h.router, config.Opts.MediaProxyMode(), config.Opts.MediaProxyResourceTypes())
 
 	json.OK(w, r, entry)
 }
@@ -47,6 +47,7 @@ func (h *handler) getFeedEntry(w http.ResponseWriter, r *http.Request) {
 	builder := h.store.NewEntryQueryBuilder(request.UserID(r))
 	builder.WithFeedID(feedID)
 	builder.WithEntryID(entryID)
+	builder.WithoutStatus(model.EntryStatusRemoved)
 
 	h.getEntryFromBuilder(w, r, builder)
 }
@@ -58,6 +59,7 @@ func (h *handler) getCategoryEntry(w http.ResponseWriter, r *http.Request) {
 	builder := h.store.NewEntryQueryBuilder(request.UserID(r))
 	builder.WithCategoryID(categoryID)
 	builder.WithEntryID(entryID)
+	builder.WithoutStatus(model.EntryStatusRemoved)
 
 	h.getEntryFromBuilder(w, r, builder)
 }
@@ -66,6 +68,7 @@ func (h *handler) getEntry(w http.ResponseWriter, r *http.Request) {
 	entryID := request.RouteInt64Param(r, "entryID")
 	builder := h.store.NewEntryQueryBuilder(request.UserID(r))
 	builder.WithEntryID(entryID)
+	builder.WithoutStatus(model.EntryStatusRemoved)
 
 	h.getEntryFromBuilder(w, r, builder)
 }
@@ -136,6 +139,7 @@ func (h *handler) findEntries(w http.ResponseWriter, r *http.Request, feedID int
 	builder.WithLimit(limit)
 	builder.WithTags(tags)
 	builder.WithEnclosures()
+	builder.WithoutStatus(model.EntryStatusRemoved)
 
 	if request.HasQueryParam(r, "globally_visible") {
 		globallyVisible := request.QueryBoolParam(r, "globally_visible", true)
@@ -186,9 +190,9 @@ func (h *handler) setEntryStatus(w http.ResponseWriter, r *http.Request) {
 	json.NoContent(w, r)
 }
 
-func (h *handler) toggleBookmark(w http.ResponseWriter, r *http.Request) {
+func (h *handler) toggleStarred(w http.ResponseWriter, r *http.Request) {
 	entryID := request.RouteInt64Param(r, "entryID")
-	if err := h.store.ToggleBookmark(request.UserID(r), entryID); err != nil {
+	if err := h.store.ToggleStarred(request.UserID(r), entryID); err != nil {
 		json.ServerError(w, r, err)
 		return
 	}
@@ -338,7 +342,7 @@ func (h *handler) fetchContent(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		json.OK(w, r, map[string]interface{}{"content": mediaproxy.RewriteDocumentWithRelativeProxyURL(h.router, entry.Content), "reading_time": entry.ReadingTime})
+		json.OK(w, r, map[string]any{"content": mediaproxy.RewriteDocumentWithRelativeProxyURL(h.router, entry.Content), "reading_time": entry.ReadingTime})
 
 		return
 	}

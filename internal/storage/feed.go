@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"time"
 
 	"miniflux.app/v2/internal/config"
 	"miniflux.app/v2/internal/model"
@@ -35,15 +36,26 @@ func (l byStateAndName) Less(i, j int) bool {
 // FeedExists checks if the given feed exists.
 func (s *Storage) FeedExists(userID, feedID int64) bool {
 	var result bool
-	query := `SELECT true FROM feeds WHERE user_id=$1 AND id=$2`
+	query := `SELECT true FROM feeds WHERE user_id=$1 AND id=$2 LIMIT 1`
 	s.db.QueryRow(query, userID, feedID).Scan(&result)
 	return result
+}
+
+// CheckedAt returns when the feed was last checked.
+func (s *Storage) CheckedAt(userID, feedID int64) (time.Time, error) {
+	var result time.Time
+	query := `SELECT checked_at FROM feeds WHERE user_id=$1 AND id=$2 LIMIT 1`
+	err := s.db.QueryRow(query, userID, feedID).Scan(&result)
+	if err != nil {
+		return time.Now(), err
+	}
+	return result, nil
 }
 
 // CategoryFeedExists returns true if the given feed exists that belongs to the given category.
 func (s *Storage) CategoryFeedExists(userID, categoryID, feedID int64) bool {
 	var result bool
-	query := `SELECT true FROM feeds WHERE user_id=$1 AND category_id=$2 AND id=$3`
+	query := `SELECT true FROM feeds WHERE user_id=$1 AND category_id=$2 AND id=$3 LIMIT 1`
 	s.db.QueryRow(query, userID, categoryID, feedID).Scan(&result)
 	return result
 }
@@ -51,7 +63,7 @@ func (s *Storage) CategoryFeedExists(userID, categoryID, feedID int64) bool {
 // FeedURLExists checks if feed URL already exists.
 func (s *Storage) FeedURLExists(userID int64, feedURL string) bool {
 	var result bool
-	query := `SELECT true FROM feeds WHERE user_id=$1 AND feed_url=$2`
+	query := `SELECT true FROM feeds WHERE user_id=$1 AND feed_url=$2 LIMIT 1`
 	s.db.QueryRow(query, userID, feedURL).Scan(&result)
 	return result
 }
@@ -59,7 +71,7 @@ func (s *Storage) FeedURLExists(userID int64, feedURL string) bool {
 // AnotherFeedURLExists checks if the user a duplicated feed.
 func (s *Storage) AnotherFeedURLExists(userID, feedID int64, feedURL string) bool {
 	var result bool
-	query := `SELECT true FROM feeds WHERE id <> $1 AND user_id=$2 AND feed_url=$3`
+	query := `SELECT true FROM feeds WHERE id <> $1 AND user_id=$2 AND feed_url=$3 LIMIT 1`
 	s.db.QueryRow(query, feedID, userID, feedURL).Scan(&result)
 	return result
 }
@@ -153,7 +165,7 @@ func (s *Storage) FeedsWithCounters(userID int64) (model.Feeds, error) {
 	return getFeedsSorted(builder)
 }
 
-// Return read and unread count.
+// FetchCounters returns read and unread count.
 func (s *Storage) FetchCounters(userID int64) (model.FeedCounters, error) {
 	builder := NewFeedQueryBuilder(s, userID)
 	builder.WithCounters()
@@ -239,6 +251,8 @@ func (s *Storage) CreateFeed(feed *model.Feed) error {
 			rewrite_rules,
 			blocklist_rules,
 			keeplist_rules,
+			block_filter_entry_rules,
+			keep_filter_entry_rules,
 			ignore_http_cache,
 			allow_self_signed_certificates,
 			fetch_via_proxy,
@@ -252,7 +266,7 @@ func (s *Storage) CreateFeed(feed *model.Feed) error {
 			proxy_url
 		)
 		VALUES
-			($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
+			($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
 		RETURNING
 			id
 	`
@@ -275,6 +289,8 @@ func (s *Storage) CreateFeed(feed *model.Feed) error {
 		feed.RewriteRules,
 		feed.BlocklistRules,
 		feed.KeeplistRules,
+		feed.BlockFilterEntryRules,
+		feed.KeepFilterEntryRules,
 		feed.IgnoreHTTPCache,
 		feed.AllowSelfSignedCertificates,
 		feed.FetchViaProxy,
@@ -344,31 +360,33 @@ func (s *Storage) UpdateFeed(feed *model.Feed) (err error) {
 			rewrite_rules=$11,
 			blocklist_rules=$12,
 			keeplist_rules=$13,
-			crawler=$14,
-			user_agent=$15,
-			cookie=$16,
-			username=$17,
-			password=$18,
-			disabled=$19,
-			next_check_at=$20,
-			ignore_http_cache=$21,
-			allow_self_signed_certificates=$22,
-			fetch_via_proxy=$23,
-			hide_globally=$24,
-			url_rewrite_rules=$25,
-			no_media_player=$26,
-			apprise_service_urls=$27,
-			webhook_url=$28,
-			disable_http2=$29,
-			description=$30,
-			ntfy_enabled=$31,
-			ntfy_priority=$32,
-			ntfy_topic=$33,
-			pushover_enabled=$34,
-			pushover_priority=$35,
-			proxy_url=$36
+			block_filter_entry_rules=$14,
+			keep_filter_entry_rules=$15,
+			crawler=$16,
+			user_agent=$17,
+			cookie=$18,
+			username=$19,
+			password=$20,
+			disabled=$21,
+			next_check_at=$22,
+			ignore_http_cache=$23,
+			allow_self_signed_certificates=$24,
+			fetch_via_proxy=$25,
+			hide_globally=$26,
+			url_rewrite_rules=$27,
+			no_media_player=$28,
+			apprise_service_urls=$29,
+			webhook_url=$30,
+			disable_http2=$31,
+			description=$32,
+			ntfy_enabled=$33,
+			ntfy_priority=$34,
+			ntfy_topic=$35,
+			pushover_enabled=$36,
+			pushover_priority=$37,
+			proxy_url=$38
 		WHERE
-			id=$37 AND user_id=$38
+			id=$39 AND user_id=$40
 	`
 	_, err = s.db.Exec(query,
 		feed.FeedURL,
@@ -384,6 +402,8 @@ func (s *Storage) UpdateFeed(feed *model.Feed) (err error) {
 		feed.RewriteRules,
 		feed.BlocklistRules,
 		feed.KeeplistRules,
+		feed.BlockFilterEntryRules,
+		feed.KeepFilterEntryRules,
 		feed.Crawler,
 		feed.UserAgent,
 		feed.Cookie,

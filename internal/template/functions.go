@@ -4,6 +4,7 @@
 package template // import "miniflux.app/v2/internal/template"
 
 import (
+	"errors"
 	"fmt"
 	"html/template"
 	"math"
@@ -32,22 +33,24 @@ type funcMap struct {
 // Map returns a map of template functions that are compiled during template parsing.
 func (f *funcMap) Map() template.FuncMap {
 	return template.FuncMap{
+		"contains":         strings.Contains,
+		"csp":              csp,
+		"startsWith":       strings.HasPrefix,
 		"formatFileSize":   formatFileSize,
 		"dict":             dict,
-		"hasKey":           hasKey,
 		"truncate":         truncate,
 		"isEmail":          isEmail,
 		"baseURL":          config.Opts.BaseURL,
 		"rootURL":          config.Opts.RootURL,
 		"disableLocalAuth": config.Opts.DisableLocalAuth,
-		"oidcProviderName": config.Opts.OIDCProviderName,
+		"oidcProviderName": config.Opts.OAuth2OIDCProviderName,
 		"hasOAuth2Provider": func(provider string) bool {
 			return config.Opts.OAuth2Provider() == provider
 		},
 		"hasAuthProxy": func() bool {
 			return config.Opts.AuthProxyHeader() != ""
 		},
-		"route": func(name string, args ...interface{}) string {
+		"route": func(name string, args ...any) string {
 			return route.Path(f.router, name, args...)
 		},
 		"safeURL": func(url string) template.URL {
@@ -59,7 +62,7 @@ func (f *funcMap) Map() template.FuncMap {
 		"safeJS": func(str string) template.JS {
 			return template.JS(str)
 		},
-		"noescape": func(str string) template.HTML {
+		"safeHTML": func(str string) template.HTML {
 			return template.HTML(str)
 		},
 		"proxyFilter": func(data string) string {
@@ -77,9 +80,7 @@ func (f *funcMap) Map() template.FuncMap {
 		"mustBeProxyfied": func(mediaType string) bool {
 			return slices.Contains(config.Opts.MediaProxyResourceTypes(), mediaType)
 		},
-		"domain":    urllib.Domain,
-		"hasPrefix": strings.HasPrefix,
-		"contains":  strings.Contains,
+		"domain": urllib.Domain,
 		"replace": func(str, old, new string) string {
 			return strings.Replace(str, old, new, 1)
 		},
@@ -89,7 +90,7 @@ func (f *funcMap) Map() template.FuncMap {
 		"theme_color": model.ThemeColor,
 		"icon": func(iconName string) template.HTML {
 			return template.HTML(fmt.Sprintf(
-				`<svg class="icon" aria-hidden="true"><use xlink:href="%s#icon-%s"/></svg>`,
+				`<svg class="icon" aria-hidden="true"><use href="%s#icon-%s"/></svg>`,
 				route.Path(f.router, "appIcon", "filename", "sprite.svg"),
 				iconName,
 			))
@@ -100,49 +101,75 @@ func (f *funcMap) Map() template.FuncMap {
 		"deRef":     func(i *int) int { return *i },
 		"duration":  duration,
 		"urlEncode": url.PathEscape,
+		"subtract": func(a, b int) int {
+			return a - b
+		},
 
-		// These functions are overrode at runtime after the parsing.
+		// These functions are overridden at runtime after parsing.
 		"elapsed": func(timezone string, t time.Time) string {
 			return ""
 		},
-		"t": func(key interface{}, args ...interface{}) string {
+		"t": func(key any, args ...any) string {
 			return ""
 		},
-		"plural": func(key string, n int, args ...interface{}) string {
+		"plural": func(key string, n int, args ...any) string {
 			return ""
 		},
 	}
 }
 
-func dict(values ...interface{}) (map[string]interface{}, error) {
-	if len(values)%2 != 0 {
-		return nil, fmt.Errorf("dict expects an even number of arguments")
+func csp(user *model.User, nonce string) string {
+	policies := map[string]string{
+		"default-src":               "'none'",
+		"frame-src":                 "*",
+		"img-src":                   "* data:",
+		"manifest-src":              "'self'",
+		"media-src":                 "*",
+		"require-trusted-types-for": "'script'",
+		"script-src":                "'nonce-" + nonce + "' 'strict-dynamic'",
+		"style-src":                 "'nonce-" + nonce + "'",
+		"trusted-types":             "html url",
+		"connect-src":               "'self'",
 	}
-	dict := make(map[string]interface{}, len(values)/2)
+
+	if user != nil {
+		if user.ExternalFontHosts != "" {
+			policies["font-src"] = user.ExternalFontHosts
+			if user.Stylesheet != "" {
+				policies["style-src"] += " " + user.ExternalFontHosts
+			}
+		}
+	}
+
+	var policy strings.Builder
+	for key, value := range policies {
+		policy.WriteString(key)
+		policy.WriteString(" ")
+		policy.WriteString(value)
+		policy.WriteString("; ")
+	}
+
+	return `<meta http-equiv="Content-Security-Policy" content="` + policy.String() + `">`
+}
+
+func dict(values ...any) (map[string]any, error) {
+	if len(values)%2 != 0 {
+		return nil, errors.New("dict expects an even number of arguments")
+	}
+	dict := make(map[string]any, len(values)/2)
 	for i := 0; i < len(values); i += 2 {
 		key, ok := values[i].(string)
 		if !ok {
-			return nil, fmt.Errorf("dict keys must be strings")
+			return nil, errors.New("dict keys must be strings")
 		}
 		dict[key] = values[i+1]
 	}
 	return dict, nil
 }
 
-func hasKey(dict map[string]string, key string) bool {
-	if value, found := dict[key]; found {
-		return value != ""
-	}
-	return false
-}
-
 func truncate(str string, max int) string {
-	runes := 0
-	for i := range str {
-		runes++
-		if runes > max {
-			return str[:i] + "…"
-		}
+	if runes := []rune(str); len(runes) > max {
+		return string(runes[:max]) + "…"
 	}
 	return str
 }

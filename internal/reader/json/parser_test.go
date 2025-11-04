@@ -41,6 +41,10 @@ func TestParseJsonFeedVersion1(t *testing.T) {
 		t.Errorf("Incorrect title, got: %s", feed.Title)
 	}
 
+	if feed.Description != "" {
+		t.Errorf("Incorrect description, got: %s", feed.Description)
+	}
+
 	if feed.FeedURL != "https://example.org/feed.json" {
 		t.Errorf("Incorrect feed URL, got: %s", feed.FeedURL)
 	}
@@ -87,6 +91,26 @@ func TestParseJsonFeedVersion1(t *testing.T) {
 
 	if feed.Entries[1].Content != "<p>Hello, world!</p>" {
 		t.Errorf("Incorrect entry content, got: %s", feed.Entries[1].Content)
+	}
+}
+
+func TestParseFeedWithDescription(t *testing.T) {
+	data := `{
+		"version": "https://jsonfeed.org/version/1",
+		"title": "My Example Feed",
+		"description": "This is a sample feed description.",
+		"home_page_url": "https://example.org/",
+		"feed_url": "https://example.org/feed.json",
+		"items": []
+	}`
+
+	feed, err := Parse("https://example.org/feed.json", bytes.NewBufferString(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if feed.Description != "This is a sample feed description." {
+		t.Errorf("Incorrect description, got: %s", feed.Description)
 	}
 }
 
@@ -387,6 +411,63 @@ func TestParseItemWithRelativeURL(t *testing.T) {
 	}
 
 	if feed.Entries[0].URL != "https://example.org/something.html" {
+		t.Errorf("Incorrect entry URL, got: %s", feed.Entries[0].URL)
+	}
+}
+
+func TestParseItemWithExternalURLAndNoURL(t *testing.T) {
+	data := `{
+		"version": "https://jsonfeed.org/version/1",
+		"title": "Example",
+		"home_page_url": "https://example.org/",
+		"feed_url": "https://example.org/feed.json",
+		"items": [
+			{
+				"id": "1234259",
+				"external_url": "some_page.html"
+			}
+		]
+	}`
+
+	feed, err := Parse("https://example.org/feed.json", bytes.NewBufferString(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(feed.Entries) != 1 {
+		t.Fatalf("Incorrect number of entries, got: %d", len(feed.Entries))
+	}
+
+	if feed.Entries[0].URL != "https://example.org/some_page.html" {
+		t.Errorf("Incorrect entry URL, got: %s", feed.Entries[0].URL)
+	}
+}
+
+func TestParseItemWithExternalURLAndURL(t *testing.T) {
+	data := `{
+		"version": "https://jsonfeed.org/version/1",
+		"title": "Example",
+		"home_page_url": "https://example.org/",
+		"feed_url": "https://example.org/feed.json",
+		"items": [
+			{
+				"id": "1234259",
+				"url": "https://example.org/article",
+				"external_url": "https://example.org/another-article"
+			}
+		]
+	}`
+
+	feed, err := Parse("https://example.org/feed.json", bytes.NewBufferString(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(feed.Entries) != 1 {
+		t.Fatalf("Incorrect number of entries, got: %d", len(feed.Entries))
+	}
+
+	if feed.Entries[0].URL != "https://example.org/article" {
 		t.Errorf("Incorrect entry URL, got: %s", feed.Entries[0].URL)
 	}
 }
@@ -766,7 +847,9 @@ func TestParseItemTags(t *testing.T) {
 				"tags": [
 					" tag 1",
 					" ",
-					"tag 2"
+					"tag 2",
+					"tag 2",
+					"aaa"
 				]
 			}
 		]
@@ -777,14 +860,19 @@ func TestParseItemTags(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(feed.Entries[0].Tags) != 2 {
+	if len(feed.Entries) != 1 {
+		t.Errorf("Incorrect number of entries, got: %d", len(feed.Entries))
+	}
+
+	if len(feed.Entries[0].Tags) != 3 {
 		t.Errorf("Incorrect number of Tags, got: %d", len(feed.Entries[0].Tags))
 	}
 
-	expected := "tag 2"
-	result := feed.Entries[0].Tags[1]
-	if result != expected {
-		t.Errorf("Incorrect entry tag, got %q instead of %q", result, expected)
+	expected := []string{"aaa", "tag 1", "tag 2"}
+	for i, tag := range feed.Entries[0].Tags {
+		if tag != expected[i] {
+			t.Errorf("Incorrect entry tag, got %q instead of %q", tag, expected[i])
+		}
 	}
 }
 
